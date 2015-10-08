@@ -21,8 +21,10 @@ public class PCFG implements EMCompatibleFunction {
 	public Map<Tag, List<CNFRule>> tagToRules;
 	public Map<Tag, Map<Tag, Map<Tag, CNFRule>>> nonTerminalRuleIndex;
 	public Map<Tag, Map<String, CNFRule>> terminalRuleIndex;
-	public Map<Tag, List<CNFRule>> firstRightTag;
-	public Map<Tag, List<CNFRule>> secondRightTag;
+	public CNFRule[][] firstRightTag;
+	public CNFRule[][] secondRightTag;
+	public int maxFirst;
+	public int maxSecond;
 
 	public Tag[] reverseTags;
 	public CNFRule[] reverseRules;
@@ -33,16 +35,32 @@ public class PCFG implements EMCompatibleFunction {
 		tagToRules = new LinkedHashMap<Tag, List<CNFRule>>();
 		nonTerminalRuleIndex = new LinkedHashMap<Tag, Map<Tag, Map<Tag, CNFRule>>>();
 		terminalRuleIndex = new LinkedHashMap<Tag, Map<String, CNFRule>>();
-		firstRightTag = new LinkedHashMap<Tag, List<CNFRule>>();
-		secondRightTag = new LinkedHashMap<Tag, List<CNFRule>>();
 		tags = new LinkedHashMap<Tag, Integer>();
+
+		Map<Tag, List<CNFRule>> firstRightTag = new LinkedHashMap<Tag, List<CNFRule>>();
+		Map<Tag, List<CNFRule>> secondRightTag = new LinkedHashMap<Tag, List<CNFRule>>();
+		maxFirst = 0;
+		maxSecond = 0;
+		
 		for(BinaryTree tree: trainingData){
 			normalizeTree(tree);
-			insertRules(tree);
+			insertRules(tree, firstRightTag, secondRightTag);
 		}
 		reverseTags = new Tag[tags.size()];
 		for(Tag tag: tags.keySet()){
 			reverseTags[tags.get(tag)] = tag;
+		}
+		this.firstRightTag = new CNFRule[tags.size()][maxFirst];
+		this.secondRightTag = new CNFRule[tags.size()][maxSecond];
+		for(int i=0; i<reverseTags.length; i++){
+			this.firstRightTag[i] = new CNFRule[firstRightTag.getOrDefault(reverseTags[i], new ArrayList<CNFRule>()).size()];
+			for(int j=0; j<this.firstRightTag[i].length; j++){
+				this.firstRightTag[i][j] = firstRightTag.getOrDefault(reverseTags[i], new ArrayList<CNFRule>()).get(j);
+			}
+			this.secondRightTag[i] = new CNFRule[secondRightTag.getOrDefault(reverseTags[i], new ArrayList<CNFRule>()).size()];
+			for(int j=0; j<this.secondRightTag[i].length; j++){
+				this.secondRightTag[i][j] = secondRightTag.getOrDefault(reverseTags[i], new ArrayList<CNFRule>()).get(j);
+			}
 		}
 		reverseRules = new CNFRule[cnfRules.size()];
 		for(CNFRule rule: cnfRules.keySet()){
@@ -80,7 +98,7 @@ public class PCFG implements EMCompatibleFunction {
 		}
 	}
 	
-	private void insertRules(BinaryTree tree){
+	private void insertRules(BinaryTree tree, Map<Tag, List<CNFRule>> firstRightTag, Map<Tag, List<CNFRule>> secondRightTag){
 		TaggedWord value = tree.value;
 		if(!tags.containsKey((value.tag()))){
 			tags.put(value.tag(), tags.size());
@@ -108,17 +126,19 @@ public class PCFG implements EMCompatibleFunction {
 				rightSideMap.put(leftTag, new LinkedHashMap<Tag, CNFRule>());
 			}
 			rightSideMap.get(leftTag).put(rightTag, rule);
-			insertRules(tree.left);
-			insertRules(tree.right);
+			insertRules(tree.left, firstRightTag, secondRightTag);
+			insertRules(tree.right, firstRightTag, secondRightTag);
 			tagToRules.get(value.tag()).add(rule);
 			if(!firstRightTag.containsKey(leftTag)){
 				firstRightTag.put(leftTag, new ArrayList<CNFRule>());
 			}
 			firstRightTag.get(leftTag).add(rule);
+			maxFirst = Math.max(maxFirst, firstRightTag.get(leftTag).size());
 			if(!secondRightTag.containsKey(rightTag)){
 				secondRightTag.put(rightTag, new ArrayList<CNFRule>());
 			}
 			secondRightTag.get(rightTag).add(rule);
+			maxSecond = Math.max(maxSecond, secondRightTag.get(rightTag).size());
 		}
 		if(!cnfRules.containsKey(rule)){
 			cnfRules.put(rule, cnfRules.size());
@@ -267,10 +287,9 @@ public class PCFG implements EMCompatibleFunction {
 				int j = i+len;
 				if(i==0 && j==n-1) continue;
 				if(DEBUG) System.out.printf("%2d %2d: ", i, j);
-				for(Tag tag: tags.keySet()){
-					int tagIdx = tags.get(tag);
+				for(int tagIdx=0; tagIdx<reverseTags.length; tagIdx++){
 					// Outside left
-					for(CNFRule rule: secondRightTag.getOrDefault(tag, new ArrayList<CNFRule>())){ // Rules having "tag" as the second right
+					for(CNFRule rule: secondRightTag[tagIdx]){ // Rules having "tag" as the second right
 						int ruleIdx = cnfRules.get(rule);
 						Tag leftSide = rule.leftSide;
 						Tag firstRight = rule.firstRight;
@@ -281,7 +300,7 @@ public class PCFG implements EMCompatibleFunction {
 						}
 					}
 					// Outside right
-					for(CNFRule rule: firstRightTag.getOrDefault(tag, new ArrayList<CNFRule>())){ // Rules having "tag" as the first right
+					for(CNFRule rule: firstRightTag[tagIdx]){ // Rules having "tag" as the first right
 						int ruleIdx = cnfRules.get(rule);
 						Tag leftSide = rule.leftSide;
 						Tag secondRight = rule.secondRight;

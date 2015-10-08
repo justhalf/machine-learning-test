@@ -23,7 +23,7 @@ public class Main {
 		
 		List<BinaryTree> trainingData = getTrainingData("ptb.dev");
 //		List<BinaryTree> trainingData = getTrainingData(null);
-		trainingData = trainingData.subList(0, 20);
+		trainingData = trainingData.subList(0, 5);
 		EMCompatibleFunction pcfg = new PCFG(trainingData);
 		EMAlgo emAlgo = new EMAlgo(pcfg);
 
