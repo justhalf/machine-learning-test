@@ -1,16 +1,18 @@
-package ml.learn;
+package ml.learn.linear;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import ml.learn.object.Tag;
+
 public class Template {
 	public String template;
 	public int[] relativePos;
 	public int[] featureIdx;
+	public  boolean isBigram;
 	
-	private boolean isBigram;
 	private String featureFormat;
 	
 	public Template(String template){
@@ -46,9 +48,8 @@ public class Template {
 		featureFormat = buf.toString();
 	}
 	
-	public Feature getFeature(Instance instance, int position, Tag prevTag, Tag curTag){
+	public String getFeature(Instance instance, int position, Tag prevTag, Tag curTag){
 		List<String> featureArguments = new ArrayList<String>();
-		featureArguments.add(featureFormat);
 		if(isBigram){
 			featureArguments.add(prevTag.text);
 		}
@@ -56,6 +57,6 @@ public class Template {
 		for(int i=0; i<relativePos.length; i++){
 			featureArguments.add(instance.getFeatureAt(position+relativePos[i], featureIdx[i]));
 		}
-		return new Feature(featureArguments);
+		return String.format(featureFormat, featureArguments.toArray());
 	}
 }

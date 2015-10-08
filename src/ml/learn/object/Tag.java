@@ -1,4 +1,4 @@
-package ml.learn;
+package ml.learn.object;
 
 import java.util.LinkedHashMap;
 

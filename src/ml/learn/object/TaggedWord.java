@@ -1,4 +1,4 @@
-package ml.learn;
+package ml.learn.object;
 
 public class TaggedWord {
 	private String word;
@@ -17,10 +17,6 @@ public class TaggedWord {
 		this.setTag(tag);
 	}
 	
-	public String toString(){
-		return word()+"/"+tag();
-	}
-
 	public String word() {
 		return word;
 	}
@@ -43,5 +39,18 @@ public class TaggedWord {
 
 	public void setFeatures(String[] features) {
 		this.features = features;
+	}
+	
+	public String toString(){
+		return word()+"/"+tag();
+	}
+
+	public String conllString(){
+		StringBuilder result = new StringBuilder();
+		for(String feature: features()){
+			result.append(feature+" ");
+		}
+		result.append(tag());
+		return result.toString();
 	}
 }

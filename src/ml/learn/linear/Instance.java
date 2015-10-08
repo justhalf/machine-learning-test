@@ -1,8 +1,11 @@
-package ml.learn;
+package ml.learn.linear;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import ml.learn.object.Tag;
+import ml.learn.object.TaggedWord;
 
 /**
  * A class representing a single data point (a sequence of words and tags)
@@ -76,6 +79,14 @@ public class Instance {
 		for(TaggedWord word: words){
 			if(result.length() > 0) result.append(" ");
 			result.append(word.toString());
+		}
+		return result.toString();
+	}
+	
+	public String conllString(){
+		StringBuilder result = new StringBuilder();
+		for(TaggedWord word: words){
+			result.append(word.conllString()+"\n");
 		}
 		return result.toString();
 	}

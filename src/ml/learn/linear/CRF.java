@@ -1,4 +1,4 @@
-package ml.learn;
+package ml.learn.linear;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +20,8 @@ import lbfgsb.IterationFinishedListener;
 import lbfgsb.LBFGSBException;
 import lbfgsb.Minimizer;
 import lbfgsb.Result;
+import ml.learn.object.Tag;
+import ml.learn.object.TaggedWord;
 
 public class CRF implements StructuredClassifier{
 	
@@ -44,7 +46,7 @@ public class CRF implements StructuredClassifier{
 	public LinkedHashMap<String, Integer> words;
 	public String[] reverseWords;
 	
-	public Map<Feature,Integer> featureIndices;
+	public Map<String,Integer> featureIndices;
 	public Template[] templates;
 	public Set<Integer>[][] tagTagCache;
 	
@@ -57,7 +59,31 @@ public class CRF implements StructuredClassifier{
 	public Random random;
 	
 	public CRF(){
-		this(new String[]{"U::%x[0,0]", "B"});
+		this(new String[]{
+//				"U00:%x[-2,0]",
+//				"U01:%x[-1,0]",
+				"U02:%x[0,0]",
+//				"U03:%x[1,0]",
+//				"U04:%x[2,0]",
+//				"U05:%x[-1,0]/%x[0,0]",
+//				"U06:%x[0,0]/%x[1,0]",
+//
+//				"U10:%x[-2,1]",
+//				"U11:%x[-1,1]",
+				"U12:%x[0,1]",
+//				"U13:%x[1,1]",
+//				"U14:%x[2,1]",
+//				"U15:%x[-2,1]/%x[-1,1]",
+//				"U16:%x[-1,1]/%x[0,1]",
+//				"U17:%x[0,1]/%x[1,1]",
+//				"U18:%x[1,1]/%x[2,1]",
+//
+//				"U20:%x[-2,1]/%x[-1,1]/%x[0,1]",
+//				"U21:%x[-1,1]/%x[0,1]/%x[1,1]",
+//				"U22:%x[0,1]/%x[1,1]/%x[2,1]",
+				
+				"B",
+				});
 	}
 	
 	public CRF(String templateFile) throws IOException{
@@ -120,11 +146,11 @@ public class CRF implements StructuredClassifier{
 	
 	private static class AccumulatorResult{
 		public double value;
-		public int parentIdx;
+		public int maxIdx;
 		
-		public AccumulatorResult(double value, int parentIdx){
+		public AccumulatorResult(double value, int maxIdx){
 			this.value = value;
-			this.parentIdx = parentIdx;
+			this.maxIdx = maxIdx;
 		}
 		
 		public AccumulatorResult(double value){
@@ -132,6 +158,11 @@ public class CRF implements StructuredClassifier{
 		}
 	}
 	
+	/**
+	 * Return the sum of values in the given double array, ignoring NaN
+	 * @param values
+	 * @return
+	 */
 	private static AccumulatorResult sum(double[] values){
 		double result = 0;
 		for(double value: values){
@@ -141,6 +172,12 @@ public class CRF implements StructuredClassifier{
 		return new AccumulatorResult(result);
 	}
 	
+	/**
+	 * Return the maximum value in the given double array, ignoring NaN.
+	 * Will also set the index of the maximum value in the array
+	 * @param values
+	 * @return
+	 */
 	private static AccumulatorResult max(double[] values){
 		double result = Double.NEGATIVE_INFINITY;
 		int parentIdx = -1;
@@ -154,6 +191,11 @@ public class CRF implements StructuredClassifier{
 		return new AccumulatorResult(result, parentIdx);
 	}
 	
+	/**
+	 * A loglikelihood function
+	 * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
+	 *
+	 */
 	private class LogLikelihood implements DifferentiableFunction{
 		
 		public List<Instance> trainingData;
@@ -164,6 +206,29 @@ public class CRF implements StructuredClassifier{
 		public LogLikelihood(List<Instance> trainingData){
 			this.trainingData = trainingData;
 			empiricalDistribution = computeEmpiricalDistribution();
+		}
+
+		private double[] computeEmpiricalDistribution(){
+			double[] result = new double[featureIndices.size()];
+			Arrays.fill(result, 0);
+			int size = trainingData.size();
+			int total = 0;
+			for(Instance instance: trainingData){
+				int n = instance.words.size()+2;
+				for(int j=0; j<n-1; j++){
+					Tag prevTag = instance.getTagAt(j-1);
+					Tag curTag = instance.getTagAt(j);
+					for(int i: featuresPresent(instance, j, prevTag, curTag)){
+						if(i == -1) continue;
+						result[i] += 1;
+					}
+				}
+				total++;
+				if(total % 10000 == 0){
+					System.out.println(String.format("Completed %d/%d", total, size));
+				}
+			}
+			return result;
 		}
 
 		@Override
@@ -180,7 +245,7 @@ public class CRF implements StructuredClassifier{
 				for(int position=0; position<n-1; position++){
 					Tag prevTag = instance.getTagAt(position-1);
 					Tag curTag = instance.getTagAt(position);
-					for(int i: featuresPresent(instance, position, prevTag, curTag, false)){
+					for(int i: featuresPresent(instance, position, prevTag, curTag)){
 						if(i == -1) continue;
 						value += point[i];
 					}
@@ -215,8 +280,8 @@ public class CRF implements StructuredClassifier{
 		private void computeForwardBackward(double[] point){
 			forwards = new LinkedHashMap<Instance, double[][]>();
 			backwards = new LinkedHashMap<Instance, double[][]>();
-			int size = trainingData.size();
-			int total = 0;
+//			int size = trainingData.size();
+//			int total = 0;
 			for(Instance instance: trainingData){
 				int n = instance.words.size()+2;
 				double[][] forward = new double[n][tags.size()];
@@ -246,10 +311,10 @@ public class CRF implements StructuredClassifier{
 //					}
 //					System.out.println();
 //				}
-				total++;
-				if(total % 100000 == 0){
-					System.out.println(String.format("Completed %d/%d", total, size));
-				}
+//				total++;
+//				if(total % 10000 == 0){
+//					System.out.println(String.format("Completed %d/%d", total, size));
+//				}
 			}
 		}
 		
@@ -282,12 +347,13 @@ public class CRF implements StructuredClassifier{
 				double[][] backward = backwards.get(instance);
 				for(int j=0; j<n-1; j++){
 					for(Tag curTag: tags.keySet()){
+						int curTagIdx = tags.get(curTag);
 						for(int nextTagIdx: getNextTags(curTag, j+1, n)){
 							Tag nextTag = reverseTags[nextTagIdx];
 							double factor = computeFactor(point, instance, j, curTag, nextTag);
-							for(int i: featuresPresent(instance, j, curTag, nextTag, false)){
+							for(int i: featuresPresent(instance, j, curTag, nextTag)){
 								if(i == -1) continue;
-								instanceExpectation[i] += forward[j][tags.get(curTag)]*factor*backward[j+1][tags.get(nextTag)];
+								instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx];
 							}
 						}
 					}
@@ -301,7 +367,7 @@ public class CRF implements StructuredClassifier{
 		
 		private double computeFactor(double[] point, Instance instance, int position, Tag prevTag, Tag curTag){
 			double result = 0;
-			for(int i: featuresPresent(instance, position, prevTag, curTag, false)){
+			for(int i: featuresPresent(instance, position, prevTag, curTag)){
 				if(i == -1) continue;
 				result += point[i];
 			}
@@ -323,29 +389,6 @@ public class CRF implements StructuredClassifier{
 		
 		private double normalizationConstant(Instance instance){
 			return backwards.get(instance)[0][tags.get(START)];
-		}
-		
-		private double[] computeEmpiricalDistribution(){
-			double[] result = new double[featureIndices.size()];
-			Arrays.fill(result, 0);
-			int size = trainingData.size();
-			int total = 0;
-			for(Instance instance: trainingData){
-				int n = instance.words.size()+2;
-				for(int j=0; j<n-1; j++){
-					Tag prevTag = instance.getTagAt(j-1);
-					Tag curTag = instance.getTagAt(j);
-					for(int i: featuresPresent(instance, j, prevTag, curTag, false)){
-						if(i == -1) continue;
-						result[i] += 1;
-					}
-				}
-				total++;
-				if(total % 10000 == 0){
-					System.out.println(String.format("Completed %d/%d", total, size));
-				}
-			}
-			return result;
 		}
 	}
 	
@@ -424,7 +467,7 @@ public class CRF implements StructuredClassifier{
 						position = i;
 					}
 					value = 0.0;
-					for(int j: featuresPresent(instance, position, prevTagArg, curTagArg, false)){
+					for(int j: featuresPresent(instance, position, prevTagArg, curTagArg)){
 						if(j == -1) continue;
 						value += weights[j];
 					}
@@ -436,7 +479,7 @@ public class CRF implements StructuredClassifier{
 				AccumulatorResult result = accumulator.apply(values);
 				curValues[curTagIdx] = result.value;
 				if(curParentIdx != null){
-					curParentIdx[curTagIdx] = result.parentIdx;
+					curParentIdx[curTagIdx] = result.maxIdx;
 				}
 			}
 		}
@@ -501,46 +544,50 @@ public class CRF implements StructuredClassifier{
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	private void buildFeatures(List<Instance> trainingData) {
-		featureIndices = new LinkedHashMap<Feature, Integer>();
-		tagTagCache = new HashSet[tags.size()][tags.size()];
-		for(int i=0; i<tags.size(); i++){
-			for(int j=0; j<tags.size(); j++){
-				tagTagCache[i][j] = new HashSet<Integer>();
-			}
-		}
+		featureIndices = new HashMap<String, Integer>();
 		for(Instance instance: trainingData){
 			List<TaggedWord> wordTags = instance.words;
 			for(int position=0; position<wordTags.size(); position++){
 				Tag prevTag = instance.getTagAt(position-1);
 				Tag curTag = instance.getTagAt(position);
-				int[] features = featuresPresent(instance, position, prevTag, curTag, true);
-				for(int feature: features){
-					tagTagCache[tags.get(prevTag)][tags.get(curTag)].add(feature);
-				}
-				
+				insertFeatures(instance, position, prevTag, curTag);
 			}
 		}
 		System.out.println("Num of featureIndices: "+featureIndices.size());
 		System.out.println("Num of tags: "+tags.size());
 	}
 	
-	private int[] featuresPresent(Instance instance, int position, Tag prevTag, Tag curTag, boolean insertIfNotFound){
-		int[] result = new int[templates.length];
-		Feature feature = null;
+	private void insertFeatures(Instance instance, int position, Tag prevTag, Tag curTag){
+		String feature = null;
 		for(int templateIdx=0; templateIdx<templates.length; templateIdx++){
 			feature = templates[templateIdx].getFeature(instance, position, prevTag, curTag);
-			int featureIndex = -1;
 			if(!featureIndices.containsKey(feature)){
-				if(insertIfNotFound){
-					featureIndex = featureIndices.size();
-					featureIndices.put(feature, featureIndex);
-				}
-			} else {
-				featureIndex = featureIndices.get(feature);
+				featureIndices.put(feature, featureIndices.size());
 			}
-			result[templateIdx] = featureIndex;
+//			for(Tag tag: tags.keySet()){
+//				feature = feature.substring(0, feature.indexOf("|")+1) + tag.text + (feature.indexOf("0") >= 0 ? feature.substring(feature.indexOf("0")) : "");
+//				if(!featureIndices.containsKey(feature)){
+//					featureIndices.put(feature, featureIndices.size());
+//				}
+//				if(templates[templateIdx].isBigram){
+//					for(Tag tag2: tags.keySet()){
+//						feature = tag2.text + "|" + feature;
+//						if(!featureIndices.containsKey(feature)){
+//							featureIndices.put(feature, featureIndices.size());
+//						}
+//					}
+//				}
+//			}
+		}
+	}
+	
+	private int[] featuresPresent(Instance instance, int position, Tag prevTag, Tag curTag){
+		int[] result = new int[templates.length];
+		String feature = null;
+		for(int templateIdx=0; templateIdx<templates.length; templateIdx++){
+			feature = templates[templateIdx].getFeature(instance, position, prevTag, curTag);
+			result[templateIdx] = featureIndices.getOrDefault(feature, -1);
 		}
 		return result;
 	}

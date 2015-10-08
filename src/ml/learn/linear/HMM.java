@@ -1,4 +1,4 @@
-package ml.learn;
+package ml.learn.linear;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -8,6 +8,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+
+import ml.learn.object.Tag;
+import ml.learn.object.TaggedWord;
 
 /**
  * A class implementing simple HMM

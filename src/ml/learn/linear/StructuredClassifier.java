@@ -1,4 +1,4 @@
-package ml.learn;
+package ml.learn.linear;
 
 import java.util.List;
 
