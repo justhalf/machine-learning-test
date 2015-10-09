@@ -16,7 +16,6 @@ public class BinaryTree {
 	public BinaryTree right;
 	public TaggedWord value;
 	
-	public Tag[][] array;
 	public String[] terminals;
 	
 	public BinaryTree(){
@@ -27,33 +26,17 @@ public class BinaryTree {
 		this.value = value;
 	}
 	
-	public void fillArray(){
+	public void fillTerminals(){
 		if(isTerminal()){
-			array = new Tag[1][1];
-			array[0][0] = value.tag();
 			terminals = new String[]{value.word()};
 		} else {
-			left.fillArray();
-			right.fillArray();
-			Tag[][] leftArray = left.array;
-			Tag[][] rightArray = right.array;
+			left.fillTerminals();
+			right.fillTerminals();
 			String[] leftTerminals = left.terminals;
 			String[] rightTerminals = right.terminals;
 			int leftLen = leftTerminals.length;
 			int rightLen = rightTerminals.length;
 			int thisLen = leftLen + rightLen;
-			array = new Tag[thisLen][thisLen];
-			for(int i=0; i<leftLen; i++){
-				for(int j=0; j<leftLen; j++){
-					array[i][j] = leftArray[i][j];
-				}
-			}
-			for(int i=0; i<rightLen; i++){
-				for(int j=0; j<rightLen; j++){
-					array[leftLen+i][leftLen+j] = rightArray[i][j];
-				}
-			}
-			array[0][thisLen-1] = value.tag();
 			terminals = new String[thisLen];
 			for(int i=0; i<leftLen; i++){
 				terminals[i] = leftTerminals[i];
@@ -61,14 +44,7 @@ public class BinaryTree {
 			for(int i=0; i<rightLen; i++){
 				terminals[leftLen+i] = rightTerminals[i];
 			}
-			left.deleteArray();
-			right.deleteArray();
 		}
-	}
-	
-	public void deleteArray(){
-		array = null;
-		terminals = null;
 	}
 	
 	public static BinaryTree fromStanfordTree(Tree tree){
@@ -81,13 +57,14 @@ public class BinaryTree {
 		if(label.startsWith("@")){
 			label = label.substring(1);
 		}
-		if(tree.isPhrasal()){
+		if(tree.isPhrasal() && !tree.isPreTerminal()){
 			if(tree.numChildren() == 2){
-				result.left = BinaryTree.fromStanfordTree(tree.firstChild());
-				result.right = BinaryTree.fromStanfordTree(tree.lastChild());
+				result.left = fromStanfordTree(tree.firstChild());
+				result.right = fromStanfordTree(tree.lastChild());
 				result.value = new TaggedWord("", Tag.get(label));
 			} else {
 				result = fromStanfordTree(tree.firstChild());
+				result.value = new TaggedWord(result.value.word(), Tag.get(label));
 			}
 		} else {
 			result.value = new TaggedWord(tree.firstChild().value(), Tag.get(label));

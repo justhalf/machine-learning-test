@@ -1,5 +1,6 @@
 package ml.learn.tree;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -12,7 +13,9 @@ import ml.learn.object.TaggedWord;
 
 public class PCFG implements EMCompatibleFunction {
 	
-	public static boolean DEBUG = false;
+	public static final boolean DEBUG = false;
+	public static final DecimalFormat FORMATTER = new DecimalFormat("+0.0E0;-#");
+	public static final Tag ROOT = Tag.get("ROOT");
 	
 	public List<BinaryTree> trainingData;
 	public Map<CNFRule, Integer> cnfRules;
@@ -62,9 +65,9 @@ public class PCFG implements EMCompatibleFunction {
 //		case "RBS":
 //		case "RBR":
 //			replacement = Tag.get("RB"); break;
-		case "SINV":
-		case "SQ":
-			replacement = Tag.get("S"); break;
+//		case "SINV":
+//		case "SQ":
+//			replacement = Tag.get("S"); break;
 //		case "SBARQ":
 //			replacement = Tag.get("SBAR"); break;
 		case "NX":
@@ -135,7 +138,7 @@ public class PCFG implements EMCompatibleFunction {
 		double[] result = new double[weights.length];
 		Arrays.fill(result, 0.0);
 		for(BinaryTree tree: trainingData){
-			tree.fillArray();
+			tree.fillTerminals();
 			double[] count = calculateExpectedCounts(tree, weights);
 			for(int ruleIdx=0; ruleIdx<cnfRules.size(); ruleIdx++){
 				result[ruleIdx] += count[ruleIdx];
@@ -149,7 +152,7 @@ public class PCFG implements EMCompatibleFunction {
 		double[][][] inside = new double[tags.size()][n][n];
 		double[][][] outside = new double[tags.size()][n][n];
 		calculateInsideOutside(tree, weights, inside, outside);
-		double normalizationTerm = inside[tags.get(Tag.get("S"))][0][n-1];
+		double normalizationTerm = inside[tags.get(ROOT)][0][n-1];
 		double[] result = new double[weights.length];
 		double value = 0.0;
 		for(int ruleIdx=0; ruleIdx<result.length; ruleIdx++){
@@ -186,9 +189,8 @@ public class PCFG implements EMCompatibleFunction {
 	}
 	
 	private void calculateInsideOutside(BinaryTree tree, double[] weights, double[][][] inside, double[][][] outside){
-		Tag[][] array = tree.array;
 		String[] terminals = tree.terminals;
-		int n = array.length;
+		int n = terminals.length;
 		for(int i=0; i<inside.length; i++){
 			for(int j=0; j<n; j++){
 				for(int k=0; k<n; k++){
@@ -197,43 +199,89 @@ public class PCFG implements EMCompatibleFunction {
 				}
 			}
 		}
+		calculateInside(terminals, weights, inside, null, null);
+		calculateOutside(weights, inside, outside, n);
+	}
+
+	private void calculateInside(String[] terminals, double[] weights, double[][][] inside, int[][][] parent, CNFRule[][][] bestRule){
+		boolean DEBUG = false;
+		int n = terminals.length;
+		for(int i=0; i<inside.length; i++){
+			for(int j=0; j<n; j++){
+				for(int k=0; k<n; k++){
+					inside[i][j][k] = 0.0;
+				}
+			}
+		}
 		long startTime=0, endTime=0;
 		// Base case alpha(A,i,i) = phi(A,i)
 		if(DEBUG) System.out.println("Calculating inside...");
 		if(DEBUG) startTime = System.currentTimeMillis();
 		for(int i=0; i<n; i++){
-			Tag tag = array[i][i];
 			String word = terminals[i];
-			int tagIdx = tags.get(array[i][i]);
-			int ruleIdx = cnfRules.get(terminalRuleIndex.get(tag).get(word));
-			inside[tagIdx][i][i] = weights[ruleIdx];
+			for(int tagIdx=0; tagIdx<reverseTags.length; tagIdx++){
+				try{
+					Tag tag = reverseTags[tagIdx];
+					CNFRule rule = terminalRuleIndex.get(tag).get(word);
+					int ruleIdx = cnfRules.get(rule);
+					inside[tagIdx][i][i] = weights[ruleIdx];
+					parent[tagIdx][i][i] = 0;
+					bestRule[tagIdx][i][i] = rule;
+				} catch (NullPointerException e){
+					continue;
+				}
+			}
 		}
 		// Recursive case alpha(A,i,j) = sum_rules sum_k phi(A->BC,i,k,j)*alpha(B,i,k)*alpha(C,k+1,j)
 		if(DEBUG){
 			System.out.printf("%6s","");
 			for(Tag tag: tags.keySet()){
-				System.out.printf("%7s",tag);
+				System.out.printf("%9s",tag);
 			}
 			System.out.println();
 		}
+		double weight;
+		
+		double value;
+		double maxValue = 0.0;
+		double sumValue = 0.0;
+		CNFRule maxRule = null;
+		int maxK = -1;
 		for(int mainDiagIdx=1; mainDiagIdx<n; mainDiagIdx++){
 			for(int diagIdx=0; diagIdx<n-mainDiagIdx; diagIdx++){
 				int i = diagIdx;
 				int j = mainDiagIdx + diagIdx;
 				if(DEBUG) System.out.printf("%2d %2d: ", i, j);
-				for(Tag tag: tags.keySet()){
-					int tagIdx = tags.get(tag);
+				for(int tagIdx=0; tagIdx<reverseTags.length; tagIdx++){
+					Tag tag = reverseTags[tagIdx];
+					maxValue = 0.0;
+					sumValue = 0.0;
 					for(CNFRule rule: tagToRules.get(tag)){ // Get non-terminal rules
 						int ruleIdx = cnfRules.get(rule);
 						Tag firstRight = rule.firstRight;
 						Tag secondRight = rule.secondRight;
 						int firstRightIdx = tags.get(firstRight);
 						int secondRightIdx = tags.get(secondRight);
+						weight = weights[ruleIdx];
 						for(int k=i; k<j; k++){
-							inside[tagIdx][i][j] += weights[ruleIdx]*inside[firstRightIdx][i][k]*inside[secondRightIdx][k+1][j];
+							value = weight*inside[firstRightIdx][i][k]*inside[secondRightIdx][k+1][j];
+							if(parent == null){
+								sumValue += value;
+							} else if(value > maxValue){
+								maxK = k;
+								maxRule = rule;
+								maxValue = value;
+							}
 						}
 					}
-					if(DEBUG) System.out.printf("%+.3f ", inside[tagIdx][i][j]);
+					if(parent == null){
+						inside[tagIdx][i][j] = sumValue;
+					} else {
+						inside[tagIdx][i][j] = maxValue;
+					}
+					if(parent != null) parent[tagIdx][i][j] = maxK;
+					if(bestRule != null) bestRule[tagIdx][i][j] = maxRule;
+					if(DEBUG) System.out.printf("%8s ", FORMATTER.format(inside[tagIdx][i][j]));
 				}
 				if(DEBUG) System.out.println();
 			}
@@ -242,23 +290,29 @@ public class PCFG implements EMCompatibleFunction {
 			endTime = System.currentTimeMillis();
 			System.out.printf("Finished calculating inside in %.3fs\n", (endTime-startTime)/1000.0);
 		}
+	}
 
+	private void calculateOutside(double[] weights, double[][][] inside, double[][][] outside, int n) {
+		double value;
+		double weight;
+		long startTime;
+		long endTime;
 		if(DEBUG){
 			System.out.println("Calculating outside...");
 			startTime = System.currentTimeMillis();
 		}
-		// Base case beta(S,1,n)=1, beta(A,1,n)=0
-		int tagSIdx = tags.get(Tag.get("S"));
+		// Base case beta(ROOT,1,n)=1, beta(A,1,n)=0
+		int tagRootIdx = tags.get(ROOT);
 		for(int i=0; i<tags.size(); i++){
 			outside[i][0][n-1] = 0.0;
 		}
-		outside[tagSIdx][0][n-1] = 1.0;
+		outside[tagRootIdx][0][n-1] = 1.0;
 		// Recursive case beta(A,i,j) = sum_B->CA sum_k phi(B->CA,k,i-1,j)*alpha(C,k,i-1)*beta(B,k,j)
 		//                             +sum_B->AC sum_k phi(B->AC,i,j,k)  *alpha(C,j+1,k)*beta(B,i,k)
 		if(DEBUG){
 			System.out.printf("%6s","");
 			for(Tag tag: tags.keySet()){
-				System.out.printf("%7s",tag);
+				System.out.printf("%9s",tag);
 			}
 			System.out.println();
 		}
@@ -267,8 +321,9 @@ public class PCFG implements EMCompatibleFunction {
 				int j = i+len;
 				if(i==0 && j==n-1) continue;
 				if(DEBUG) System.out.printf("%2d %2d: ", i, j);
-				for(Tag tag: tags.keySet()){
-					int tagIdx = tags.get(tag);
+				for(int tagIdx=0; tagIdx<reverseTags.length; tagIdx++){
+					Tag tag = reverseTags[tagIdx];
+					value = 0.0;
 					// Outside left
 					for(CNFRule rule: secondRightTag.getOrDefault(tag, new ArrayList<CNFRule>())){ // Rules having "tag" as the second right
 						int ruleIdx = cnfRules.get(rule);
@@ -276,8 +331,9 @@ public class PCFG implements EMCompatibleFunction {
 						Tag firstRight = rule.firstRight;
 						int leftSideIdx = tags.get(leftSide);
 						int firstRightIdx = tags.get(firstRight);
+						weight = weights[ruleIdx];
 						for(int k=0; k<i; k++){
-							outside[tagIdx][i][j] += weights[ruleIdx]*inside[firstRightIdx][k][i-1]*outside[leftSideIdx][k][j];
+							value += weight*inside[firstRightIdx][k][i-1]*outside[leftSideIdx][k][j];
 						}
 					}
 					// Outside right
@@ -287,11 +343,13 @@ public class PCFG implements EMCompatibleFunction {
 						Tag secondRight = rule.secondRight;
 						int leftSideIdx = tags.get(leftSide);
 						int secondRightIdx = tags.get(secondRight);
+						weight = weights[ruleIdx];
 						for(int k=j+1; k<n; k++){
-							outside[tagIdx][i][j] += weights[ruleIdx]*inside[secondRightIdx][j+1][k]*outside[leftSideIdx][i][k];
+							value += weight*inside[secondRightIdx][j+1][k]*outside[leftSideIdx][i][k];
 						}
 					}
-					if(DEBUG) System.out.printf("%+.3f ", outside[tagIdx][i][j]);
+					outside[tagIdx][i][j] = value;
+					if(DEBUG) System.out.printf("%8s ", FORMATTER.format(outside[tagIdx][i][j]));
 				}
 				if(DEBUG) System.out.println();
 			}
@@ -311,6 +369,45 @@ public class PCFG implements EMCompatibleFunction {
 		double[] result = new double[expectations.length];
 		for(int i=0; i<expectations.length; i++){
 			result[i] = expectations[i] / sum;
+		}
+		return result;
+	}
+	
+	/**
+	 * Predict the tree structure based on the weights for the grammar that we have
+	 * @param terminals
+	 * @param weights
+	 * @return
+	 */
+	public BinaryTree predict(String[] terminals, double[] weights){
+		int n = terminals.length;
+		double[][][] inside = new double[tags.size()][n][n];
+		int[][][] parent = new int[tags.size()][n][n];
+		CNFRule[][][] bestRule = new CNFRule[tags.size()][n][n];
+		calculateInside(terminals, weights, inside, parent, bestRule);
+
+		BinaryTree result = inferBest(terminals, parent, bestRule, tags.get(ROOT), 0, n-1);
+		return result;
+	}
+	
+	private BinaryTree inferBest(String[] terminals, int[][][] parent, CNFRule[][][] bestRule, int tagIdx, int start, int end){
+		BinaryTree result = new BinaryTree();
+		CNFRule rule = bestRule[tagIdx][start][end];
+		if(rule == null){
+			result.value = new TaggedWord("null", Tag.get("X"));
+			return result;
+		}
+		if(rule.terminal == null){
+			Tag firstRight = rule.firstRight;
+			Tag secondRight = rule.secondRight;
+			int firstRightIdx = tags.get(firstRight);
+			int secondRightIdx = tags.get(secondRight);
+			int k = parent[tagIdx][start][end];
+			result.left = inferBest(terminals, parent, bestRule, firstRightIdx, start, k);
+			result.right = inferBest(terminals, parent, bestRule, secondRightIdx, k+1, end);
+			result.value = new TaggedWord("", rule.leftSide);
+		} else {
+			result.value = new TaggedWord(terminals[start], rule.leftSide);
 		}
 		return result;
 	}
