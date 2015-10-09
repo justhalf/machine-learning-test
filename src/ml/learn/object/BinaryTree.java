@@ -12,20 +12,31 @@ import edu.stanford.nlp.trees.Tree;
  *
  */
 public class BinaryTree {
+	/** The left tree **/
 	public BinaryTree left;
+	/** The right tree **/
 	public BinaryTree right;
+	/** The value at this tree node **/
 	public TaggedWord value;
 	
+	/** The list of terminals on this tree **/
 	public String[] terminals;
 	
 	public BinaryTree(){
 		
 	}
 	
+	/**
+	 * Create a BinaryTree containing the specified tagged word
+	 * @param value
+	 */
 	public BinaryTree(TaggedWord value){
 		this.value = value;
 	}
 	
+	/**
+	 * Fill the terminals (the words)
+	 */
 	public void fillTerminals(){
 		if(isTerminal()){
 			terminals = new String[]{value.word()};
@@ -47,6 +58,11 @@ public class BinaryTree {
 		}
 	}
 	
+	/**
+	 * Create a {@link BinaryTree} object from a Stanford {@link Tree}
+	 * @param tree
+	 * @return
+	 */
 	public static BinaryTree fromStanfordTree(Tree tree){
 		BinaryTree result = new BinaryTree();
 		String label = tree.value();
@@ -72,12 +88,28 @@ public class BinaryTree {
 		return result;
 	}
 	
+	/**
+	 * Parse a serialized <strong>binary</strong> tree from the given string.
+	 * Each tree should start with a bracket, followed by the label, then a space.
+	 * Then followed by either:
+	 * a. A terminal
+	 * b. Two serialized trees in the same format
+	 * And finally ended with a closing bracket.
+	 * @param bracketedTree
+	 * @return
+	 */
 	public static BinaryTree parse(String bracketedTree){
 		CharacterIterator iterator = new StringCharacterIterator(bracketedTree);
 		return parse(iterator);
 	}
 	
-	public static BinaryTree parse(CharacterIterator input) throws InvalidParameterException {
+	/**
+	 * Parse a serialized <strong>binary</strong> tree from the given CharacterIterator
+	 * @param input
+	 * @return
+	 * @throws InvalidParameterException
+	 */
+	private static BinaryTree parse(CharacterIterator input) throws InvalidParameterException {
 		BinaryTree result = new BinaryTree();
 		StringBuilder read = new StringBuilder();
 		try{

@@ -1,5 +1,10 @@
 package ml.learn.tree;
 
+/**
+ * A class implementing EM algorithm
+ * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
+ *
+ */
 public class EMAlgo {
 	
 	public EMCompatibleFunction function;
@@ -19,6 +24,11 @@ public class EMAlgo {
 		this.threshold = threshold;
 	}
 	
+	/**
+	 * Find the best parameters using the EM algorithm on the function specified during the construction
+	 * @param startingPoint
+	 * @return
+	 */
 	public double[] getBestParams(double[] startingPoint){
 		double[] prevResult = startingPoint;
 		double[] result = null;

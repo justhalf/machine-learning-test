@@ -59,6 +59,11 @@ public class Main {
 		metric.display(true);
 	}
 	
+	/**
+	 * Convert our {@link BinaryTree} into Stanford {@link Tree}
+	 * @param tree
+	 * @return
+	 */
 	private static Tree toStanfordTree(BinaryTree tree){
 		try{
 			PennTreeReader reader = new PennTreeReader(new StringReader(tree.toString()));
@@ -70,6 +75,13 @@ public class Main {
 		}
 	}
 	
+	/**
+	 * Return training data.
+	 * If fileName is null, a small artificial data is returned.
+	 * @param fileName
+	 * @return
+	 * @throws IOException
+	 */
 	private static List<BinaryTree> getTrainingData(String fileName) throws IOException{
 		List<BinaryTree> result;
 		if(fileName == null){
@@ -86,7 +98,15 @@ public class Main {
 		}
 		return result;
 	}
+
 	
+	/**
+	 * Return test data.
+	 * If fileName is null, a small artificial data is returned.
+	 * @param fileName
+	 * @return
+	 * @throws IOException
+	 */
 	private static List<BinaryTree> getTestData(String fileName) throws IOException{
 		List<BinaryTree> result;
 		if(fileName == null){
@@ -104,6 +124,13 @@ public class Main {
 		return result;
 	}
 	
+	/**
+	 * Read the trees from a file containing list of serialized tree in Penn Treebank bracketed format.
+	 * Will convert the trees into binary trees.
+	 * @param fileName
+	 * @return
+	 * @throws IOException
+	 */
 	private static List<BinaryTree> readPTB(String fileName) throws IOException{
 		List<BinaryTree> result = new ArrayList<BinaryTree>();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
@@ -117,6 +144,11 @@ public class Main {
 		return result;
 	}
 	
+	/**
+	 * Read Stanford Tree from the given serialized tree in Penn Treebank bracketed format
+	 * @param input
+	 * @return
+	 */
 	private static Tree readStanfordTree(String input){
 		Tree tree = null;
 		try{

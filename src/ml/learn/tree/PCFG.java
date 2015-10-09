@@ -11,25 +11,45 @@ import ml.learn.object.BinaryTree;
 import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
 
+/**
+ * A class compatible for EM Algorithm for the application of PCFG.
+ * In addition to implementing the functions defined by {@link EMCompatibleFunction}, this defines 
+ * another method {@link #predict(String[], double[])} to decode the tree out of the given terminals
+ * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
+ *
+ */
 public class PCFG implements EMCompatibleFunction {
 	
 	public static final boolean DEBUG = false;
 	public static final DecimalFormat FORMATTER = new DecimalFormat("+0.0E0;-#");
+	/** The tag considered to be the root tag **/
 	public static final Tag ROOT = Tag.get("ROOT");
 	
 	public List<BinaryTree> trainingData;
 	public Map<CNFRule, Integer> cnfRules;
 	
+	/** Mapping of tags (non-terminals) to indices **/
 	public Map<Tag, Integer> tags;
+	/** Mapping from tags to rules containing the tag as the left side **/
 	public Map<Tag, List<CNFRule>> tagToRules;
+	/** Index of CNF rules based on the left tag, first tag in the right, and second tag in the right **/
 	public Map<Tag, Map<Tag, Map<Tag, CNFRule>>> nonTerminalRuleIndex;
+	/** Index of CNF rules based on the left tag and the word on the right **/
 	public Map<Tag, Map<String, CNFRule>> terminalRuleIndex;
+	/** Index of CNF rules based on the first tag on the right side **/
 	public Map<Tag, List<CNFRule>> firstRightTag;
+	/** Index of CNF rules based on the second tag on the right side **/
 	public Map<Tag, List<CNFRule>> secondRightTag;
 
+	/** Index of tags **/
 	public Tag[] reverseTags;
+	/** Index of rules **/
 	public CNFRule[] reverseRules;
 	
+	/**
+	 * Initialize a PCFG by extracting CNF rules from the list of binary trees
+	 * @param trainingData
+	 */
 	public PCFG(List<BinaryTree> trainingData){
 		this.trainingData = trainingData;
 		cnfRules = new LinkedHashMap<CNFRule, Integer>();
@@ -56,6 +76,10 @@ public class PCFG implements EMCompatibleFunction {
 		System.out.println("#Non-terminals: "+tags.size());
 	}
 	
+	/**
+	 * Normalize tree by coalescing some tags
+	 * @param tree
+	 */
 	private void normalizeTree(BinaryTree tree){
 		Tag tag = tree.value.tag();
 		Tag replacement;
@@ -83,6 +107,10 @@ public class PCFG implements EMCompatibleFunction {
 		}
 	}
 	
+	/**
+	 * Extract CNF rules from the tree
+	 * @param tree
+	 */
 	private void insertRules(BinaryTree tree){
 		TaggedWord value = tree.value;
 		if(!tags.containsKey((value.tag()))){
@@ -147,11 +175,17 @@ public class PCFG implements EMCompatibleFunction {
 		return result;
 	}
 	
+	/**
+	 * Calculate the expected counts of each rule for the given tree under the given weights for each CNF rule
+	 * @param tree The tree
+	 * @param weights The weights for each CNF rules
+	 * @return
+	 */
 	private double[] calculateExpectedCounts(BinaryTree tree, double[] weights){
 		int n = tree.terminals.length;
 		double[][][] inside = new double[tags.size()][n][n];
 		double[][][] outside = new double[tags.size()][n][n];
-		calculateInsideOutside(tree, weights, inside, outside);
+		calculateInsideOutside(tree.terminals, weights, inside, outside);
 		double normalizationTerm = inside[tags.get(ROOT)][0][n-1];
 		double[] result = new double[weights.length];
 		double value = 0.0;
@@ -188,8 +222,14 @@ public class PCFG implements EMCompatibleFunction {
 		return result;
 	}
 	
-	private void calculateInsideOutside(BinaryTree tree, double[] weights, double[][][] inside, double[][][] outside){
-		String[] terminals = tree.terminals;
+	/**
+	 * Calculate the inside and outside potentials with the Inside-Outside algorithm
+	 * @param terminals The list of terminals (i.e., words)
+	 * @param weights The weights for each CNF rules
+	 * @param inside The inside potential array to be filled
+	 * @param outside The outisde potential array to be filled
+	 */
+	private void calculateInsideOutside(String[] terminals, double[] weights, double[][][] inside, double[][][] outside){
 		int n = terminals.length;
 		for(int i=0; i<inside.length; i++){
 			for(int j=0; j<n; j++){
@@ -203,6 +243,14 @@ public class PCFG implements EMCompatibleFunction {
 		calculateOutside(weights, inside, outside, n);
 	}
 
+	/**
+	 * Calculate the inside potential values using dynamic programming
+	 * @param terminals List of terminals (i.e., words)
+	 * @param weights The weights for each CNF rules
+	 * @param inside The inside value array to be filled (size: #tags*n*n, where n is the length of terminals)
+	 * @param parent To store parent pointer for decoding
+	 * @param bestRule To store best rule for decoding
+	 */
 	private void calculateInside(String[] terminals, double[] weights, double[][][] inside, int[][][] parent, CNFRule[][][] bestRule){
 		boolean DEBUG = false;
 		int n = terminals.length;
@@ -292,6 +340,13 @@ public class PCFG implements EMCompatibleFunction {
 		}
 	}
 
+	/**
+	 * Calculate the outside potential values using the dynamic programming
+	 * @param weights The weights for each CNF rules
+	 * @param inside The inside potential values already calculated
+	 * @param outside The outside potential value array to be filled
+	 * @param n Length of current sample
+	 */
 	private void calculateOutside(double[] weights, double[][][] inside, double[][][] outside, int n) {
 		double value;
 		double weight;
@@ -390,6 +445,17 @@ public class PCFG implements EMCompatibleFunction {
 		return result;
 	}
 	
+	/**
+	 * Given the terminals (list of words) and the parent pointer with the best rule, 
+	 * return the best tree (tree with highest potential) spanning from start to end, rooted at the given tag
+	 * @param terminals List of terminals (i.e., words)
+	 * @param parent The parent pointer
+	 * @param bestRule The best rule in relation with the parent
+	 * @param tagIdx The index of the root tag of the tree to be returned
+	 * @param start The start index of the tree to be returned
+	 * @param end The end index of the tree to be returned
+	 * @return
+	 */
 	private BinaryTree inferBest(String[] terminals, int[][][] parent, CNFRule[][][] bestRule, int tagIdx, int start, int end){
 		BinaryTree result = new BinaryTree();
 		CNFRule rule = bestRule[tagIdx][start][end];
