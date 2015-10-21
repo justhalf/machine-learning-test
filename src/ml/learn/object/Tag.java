@@ -45,4 +45,16 @@ public class Tag {
 	public String toString(){
 		return text;
 	}
+	
+	public boolean equals(Object o){
+		if(o instanceof Tag){
+			Tag t = (Tag)o;
+			return t.text.equals(this.text);
+		}
+		return false;
+	}
+	
+	public int hashCode(){
+		return text.hashCode();
+	}
 }
