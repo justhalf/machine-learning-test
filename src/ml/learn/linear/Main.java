@@ -22,10 +22,10 @@ public class Main {
 		boolean runInteractive = false;
 		String trainingFile = "a2_data/sents.train";
 		String testFile = "a2_data/sents.test";
-		String devFile = "a2_data/sents.devt";
+//		String devFile = "a2_data/sents.devt";
 		List<Instance> trainingData = readData(trainingFile, true);
 		List<Instance> testData = readData(testFile, false);
-		List<Instance> devData = readData(devFile, true);
+//		List<Instance> devData = readData(devFile, true);
 		
 		String conllTrainingFile = "experiments/train.data";
 		String conllTestFile = "experiments/test.data";
@@ -34,7 +34,7 @@ public class Main {
 			testData = readCoNLLData(conllTestFile, true);
 		}
 		List<Instance> result;
-		List<Instance> reduced = new ArrayList<Instance>();
+//		List<Instance> reduced = new ArrayList<Instance>();
 //		reduced.add(trainingData.get(1));
 //		reduced.add(trainingData.get(3));
 //		reduced = trainingData.subList(0, 1000);

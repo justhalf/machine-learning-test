@@ -76,6 +76,7 @@ public class CRF implements StructuredClassifier{
 	/** An empty array */
 	public int[] empty;
 	
+	/** Whether to calculate forward backward in log space */
 	public boolean useLogSpace = true;
 	
 	public Random random;
@@ -160,12 +161,20 @@ public class CRF implements StructuredClassifier{
 		alg.setIterationFinishedListener(new IterationFinishedListener(){
 			
 			public int i=0;
+			public double lastValue = 0.0;
 			public long startTime = System.currentTimeMillis();
 
 			@Override
 			public boolean iterationFinished(double[] point, double functionValue, double[] gradient) {
 				i++;
-				System.out.printf("Iteration %d: %.3f, elapsed time %.3fs\n", i, -functionValue, (System.currentTimeMillis()-startTime)/1000.0);
+				double change = -functionValue - lastValue;
+				String suffix = "";
+				if(lastValue != 0){
+					change = 100.0*change/-lastValue;
+					suffix = "%";
+				}
+				System.out.printf("Iteration %d: %.9f (%+.6f%s), elapsed time %.3fs\n", i, -functionValue, change, suffix, (System.currentTimeMillis()-startTime)/1000.0);
+				lastValue = -functionValue;
 //				gradient = negate(gradient);
 //				System.out.println("Point:");
 //				for(int j=0; j<point.length; j++){
@@ -419,7 +428,7 @@ public class CRF implements StructuredClassifier{
 				for(int j=0; j<n-1; j++){
 					for(Tag curTag: tags.keySet()){
 						int curTagIdx = tags.get(curTag);
-						for(int nextTagIdx: getNextTags(curTag, j+1, n)){
+						for(int nextTagIdx: getNextTags(curTag, j, n)){
 							Tag nextTag = reverseTags[nextTagIdx];
 							double factor;
 							if(useLogSpace){
