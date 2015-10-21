@@ -33,17 +33,19 @@ public class EMAlgo {
 		double[] prevResult = startingPoint;
 		double[] result = null;
 		double[] expectations = null;
-		long startTime, endTime;
+		long start = System.currentTimeMillis();
+//		long startTime, endTime;
 		for(int iterNum=0; iterNum<maxIter; iterNum++){
-			System.out.println("Starting iteration "+(iterNum+1));
-			startTime = System.currentTimeMillis();
+//			System.out.println("Starting iteration "+(iterNum+1));
+//			startTime = System.currentTimeMillis();
 			expectations = function.expectation(prevResult);
-			endTime = System.currentTimeMillis();
-			System.out.printf("Finished calculating expectation in %.3fs\n", (endTime-startTime)/1000.0);
-			startTime = System.currentTimeMillis();
+//			endTime = System.currentTimeMillis();
+//			System.out.printf("Finished calculating expectation in %.3fs\n", (endTime-startTime)/1000.0);
+//			startTime = System.currentTimeMillis();
 			result = function.maximize(expectations);
-			endTime = System.currentTimeMillis();
-			System.out.printf("Finished maximizing params in %.3fs\n", (endTime-startTime)/1000.0);
+//			endTime = System.currentTimeMillis();
+//			System.out.printf("Finished maximizing params in %.3fs\n", (endTime-startTime)/1000.0);
+			System.out.printf("Iteration "+(iterNum+1)+" finished. Elapsed time: %.3fs\n", (System.currentTimeMillis()-start)/1000.0);
 			boolean hasLargeChange = false;
 			for(int i=0; i<result.length; i++){
 				if(Math.abs(result[i]-prevResult[i]) >= threshold){
