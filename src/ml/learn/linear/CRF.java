@@ -23,7 +23,9 @@ import ml.learn.linear.Template.Feature;
 import ml.learn.linear.Template.TagIndex;
 import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
+import ml.learn.optimizer.GradientDescentMinimizer;
 import ml.learn.util.Common;
+import ml.learn.optimizer.GradientDescentMinimizer.LearningRate;
 
 public class CRF implements StructuredClassifier{
 	
@@ -61,6 +63,7 @@ public class CRF implements StructuredClassifier{
 	public Map<String,Integer> featureIndices;
 	/** The reverse mapping of {@link #featureIndices} */
 	public String[] reverseFeatureIndices;
+
 	/** Mapping from partial feature names (e.g., U00:Confidence, B) to {@link TagIndex} */
 	public Map<String, TagIndex> tagIndices;
 	/** List of feature templates */
@@ -81,6 +84,13 @@ public class CRF implements StructuredClassifier{
 	public boolean useLogSpace = true;
 	
 	public Random random;
+	
+	boolean useSGD = true;
+//	boolean useSGD = false;
+	private double eta0 = 0.01;
+	private int iterations = 10000;
+	private int batchSize = 1;
+	private LearningRate learningRate = LearningRate.CONSTANT;
 	
 	/**
 	 * Create a CRF model with default feature templates
@@ -199,14 +209,20 @@ public class CRF implements StructuredClassifier{
 	 * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
 	 *
 	 */
-	private class LogLikelihood implements DifferentiableFunction{
+	public class LogLikelihood implements DifferentiableFunction{
 		
 		public List<Instance> trainingData;
+		public List<Instance> staticTrainingData;
 		public LinkedHashMap<Instance, double[][]> forwards;
 		public LinkedHashMap<Instance, double[][]> backwards;
 		public double[] empiricalDistribution;
 		
+		public String[] getReverseFeatureIndices(){
+			return reverseFeatureIndices;
+		}
+		
 		public LogLikelihood(List<Instance> trainingData){
+			this.staticTrainingData = trainingData;
 			this.trainingData = trainingData;
 			empiricalDistribution = computeEmpiricalDistribution();
 		}
@@ -233,9 +249,15 @@ public class CRF implements StructuredClassifier{
 			}
 			return result;
 		}
-
+		
 		@Override
-		public FunctionValues getValues(double[] point) {
+		public FunctionValues getValues(double[] point){
+			return getValues(point, staticTrainingData);
+		}
+
+		public FunctionValues getValues(double[] point, List<Instance> trainingData) {
+			this.trainingData = trainingData;
+			empiricalDistribution = computeEmpiricalDistribution();
 //			System.out.println("Computing forward backward...");
 //			long startTime = System.currentTimeMillis();
 			computeForwardBackward(point);
@@ -277,10 +299,11 @@ public class CRF implements StructuredClassifier{
 		 */
 		private double regularizationTerm(double[] point){
 			double result = 0;
+			double scale = (double) trainingData.size()/staticTrainingData.size();
 			for(int i=0; i<point.length; i++){
 				result += Math.pow(point[i], 2);
 			}
-			result /= 2*Math.pow(regularizationParameter, 2);
+			result /= 2*Math.pow(regularizationParameter, 2)*scale;
 			return result;
 		}
 		
@@ -319,14 +342,14 @@ public class CRF implements StructuredClassifier{
 //				System.out.println();
 //				for(int i=0; i<n; i++){
 //					for(int j=0; j<tags.size(); j++){
-//						System.out.printf("%15.0f ", forward[i][j]);
+//						System.out.printf("%15.2f ", forward[i][j]);
 //					}
 //					System.out.println();
 //				}
 //				System.out.println("Backward:");
 //				for(int i=0; i<n; i++){
 //					for(int j=0; j<tags.size(); j++){
-//						System.out.printf("%15.0f ", backward[i][j]);
+//						System.out.printf("%15.2f ", backward[i][j]);
 //					}
 //					System.out.println();
 //				}
@@ -345,7 +368,17 @@ public class CRF implements StructuredClassifier{
 			double[] regularization = computeGradientOfRegularization(point);
 			for(int i=0; i<result.length; i++){
 				result[i] = empiricalDistribution[i] - modelDistribution[i] - regularization[i];
+//				if (true) {
+//					System.out.println("Statistics for "+i);
+//					System.out.println("Empirical "+empiricalDistribution[i]);
+//					System.out.println("Model "+modelDistribution[i]);
+//					System.out.println("Reg "+regularization[i]);
+//					if (i == 36)
+//					System.out.println("Predicted model dist: "+ (empiricalDistribution[i]-regularization[i]-0.094));
+//				}
+//				System.out.printf("%.3f ", result[i]);
 			}
+//			System.out.println();
 			return result;
 		}
 		
@@ -412,15 +445,16 @@ public class CRF implements StructuredClassifier{
 		 * @return
 		 */
 		private double[] computeGradientOfRegularization(double[] point){
+			double scale = ((double)trainingData.size())/staticTrainingData.size();
 			double[] result = new double[featureIndices.size()];
 			for(int i=0; i<result.length; i++){
-				result[i] = point[i]/Math.pow(regularizationParameter, 2);
+				result[i] = point[i]/Math.pow(regularizationParameter, 2)*scale;
 			}
 			return result;
 		}
 		
 		/**
-		 * The value of log Z for a specific instance
+		 * The value of Z for a specific instance
 		 * @param instance
 		 * @return
 		 */
@@ -686,11 +720,12 @@ public class CRF implements StructuredClassifier{
 		LogLikelihood logLikelihood = new LogLikelihood(trainingData);
 		double[] startingPoint = new double[featureIndices.size()];
 		System.out.println("Starting point:");
+		
 		for(int i=0; i<startingPoint.length; i++){
 			startingPoint[i] = random.nextGaussian();
 			System.out.printf("%.3f ", startingPoint[i]);
 		};
-//		System.out.println();
+		System.out.println();
 //		printGradientAt(logLikelihood, startingPoint);
 //		System.out.println();
 //		System.out.println("Starting point:");
@@ -701,21 +736,36 @@ public class CRF implements StructuredClassifier{
 //		}
 //		System.out.println();
 //		printGradientAt(logLikelihood, startingPoint);
-		Result result = null;
-		try {
-			System.out.println("Start maximizing Log-Likelihood...");
-			// Actually minimize the negation of the actual log-likelihood
-			// Which is equivalent to maximizing the actual log-likelihood
-			result = minimize(logLikelihood, startingPoint);
-		} catch (LBFGSBException e) {
-			e.printStackTrace();
+		
+		long startTime = System.currentTimeMillis();
+		if (useSGD) {
+			GradientDescentMinimizer sgdMinimizer = new GradientDescentMinimizer();
+			sgdMinimizer.setLearningRate(learningRate);
+			sgdMinimizer.setIterations(iterations);
+			sgdMinimizer.setEta0(eta0);
+			if (batchSize == 0) batchSize = logLikelihood.staticTrainingData.size(); 
+			sgdMinimizer.setBatchSize(batchSize);
+//			weights = sgdMinimizer.minimize(logLikelihood, startingPoint);
+			weights = sgdMinimizer.minimize2(logLikelihood, startingPoint);
+		} else {
+			Result result = null;
+			try {
+				System.out.println("Start maximizing Log-Likelihood...");
+				// Actually minimize the negation of the actual log-likelihood
+				// Which is equivalent to maximizing the actual log-likelihood
+				result = minimize(logLikelihood, startingPoint);
+			} catch (LBFGSBException e) {
+				e.printStackTrace();
+			}
+			weights = result.point;
 		}
-		weights = result.point;
+		long endTime = System.currentTimeMillis();
+		System.out.printf("Done minimizing in %.3fs\n", (endTime-startTime)/1000.0);
+		
 		System.out.println("Weights:");
 		for(int i=0; i<weights.length; i++){
 			System.out.printf("%.3f ", weights[i]);
-		}
-		System.out.println();
+		} 
 		System.out.println("Done!");
 	}
 

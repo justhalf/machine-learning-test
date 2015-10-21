@@ -18,6 +18,7 @@ public class Main {
 	public static void main(String[] args) throws Exception{
 		boolean useCRF = true;
 		boolean useCoNLLFormat = true;
+//		boolean useCoNLLFormat = false;
 		boolean printTestResult = false;
 		boolean runInteractive = false;
 		String trainingFile = "a2_data/sents.train";
@@ -29,6 +30,8 @@ public class Main {
 		
 		String conllTrainingFile = "experiments/train.data";
 		String conllTestFile = "experiments/test.data";
+//		conllTrainingFile = "lihao data/training.pos";
+//		conllTestFile = "lihao data/development.pos";
 		if(useCoNLLFormat){
 			trainingData = readCoNLLData(conllTrainingFile, true);
 			testData = readCoNLLData(conllTestFile, true);
@@ -37,7 +40,7 @@ public class Main {
 //		List<Instance> reduced = new ArrayList<Instance>();
 //		reduced.add(trainingData.get(1));
 //		reduced.add(trainingData.get(3));
-//		reduced = trainingData.subList(0, 1000);
+//		reduced = trainingData.subList(0, 40);
 		StructuredClassifier classifier;
 		if(useCRF){
 			classifier = new CRF();
