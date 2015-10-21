@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import ml.learn.linear.Template.Feature;
 import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
 
@@ -17,6 +18,7 @@ public class Instance {
 	public List<TaggedWord> words;
 	private TaggedWord START = null;
 	private TaggedWord END = null;
+	public Feature[][] features;
 	
 	public Instance(List<TaggedWord> words){
 		this.words = new ArrayList<TaggedWord>(words.size());
@@ -35,6 +37,7 @@ public class Instance {
 	}
 	
 	private void initialize(){
+		features = new Feature[words.size()+1][];
 		if(words.size() > 0){
 			TaggedWord word = words.get(0);
 			String[] startFeatures = new String[word.features().length];

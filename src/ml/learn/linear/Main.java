@@ -35,18 +35,19 @@ public class Main {
 		}
 		List<Instance> result;
 		List<Instance> reduced = new ArrayList<Instance>();
-		reduced.add(trainingData.get(1));
-		reduced.add(trainingData.get(3));
-//		reduced = trainingData.subList(0, 40);
+//		reduced.add(trainingData.get(1));
+//		reduced.add(trainingData.get(3));
+//		reduced = trainingData.subList(0, 1000);
 		StructuredClassifier classifier;
 		if(useCRF){
 			classifier = new CRF();
 		} else {
 			classifier = new HMM();
 		}
+//		testData = reduced;
 		classifier.train(trainingData);
 //		classifier.train(reduced);
-		result = classifier.predict(devData);
+		result = classifier.predict(testData);
 //		result = classifier.predict(reduced);
 		if(printTestResult){
 			for(Instance instance: testData){
@@ -56,7 +57,7 @@ public class Main {
 				System.out.println(instance);
 			}
 		}
-		printScore(result, devData);
+		printScore(result, testData);
 		if(useCoNLLFormat){
 			FileWriter wr = new FileWriter("experiments/myresult");
 			Iterator<Instance> predIter = result.iterator();
