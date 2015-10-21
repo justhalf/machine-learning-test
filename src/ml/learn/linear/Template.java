@@ -47,6 +47,12 @@ public class Template {
 		featureFormat = buf.toString();
 	}
 	
+	/**
+	 * A class to store mapping between tags and the feature index associated with the tag sequence.
+	 * This class is supposed to be used for one partially-filled feature name
+	 * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
+	 *
+	 */
 	public static class TagIndex {
 		public LinkedHashMap<Tag, Integer> unigramIndex;
 		public LinkedHashMap<Tag, LinkedHashMap<Tag, Integer>> bigramIndex;
