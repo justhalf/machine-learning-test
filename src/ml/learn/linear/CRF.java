@@ -76,6 +76,8 @@ public class CRF implements StructuredClassifier{
 	/** An empty array */
 	public int[] empty;
 	
+	public boolean useLogSpace = true;
+	
 	public Random random;
 	
 	/**
@@ -211,6 +213,21 @@ public class CRF implements StructuredClassifier{
 	}
 	
 	/**
+	 * Return the sum of values in the given double array, in log space, ignoring NaN
+	 * @param values
+	 * @return
+	 */
+	private static AccumulatorResult sumInLogSpace(double[] values){
+		double result = 0;
+		double max = max(values).value;
+		for(double value: values){
+			if(Double.isNaN(value)) continue;
+			result += Math.exp(value-max);
+		}
+		return new AccumulatorResult(Math.log(result)+max);
+	}
+	
+	/**
 	 * Return the maximum value in the given double array, ignoring NaN.
 	 * Will also set the index of the maximum value in the array
 	 * @param values
@@ -288,7 +305,11 @@ public class CRF implements StructuredClassifier{
 						value += point[i];
 					}
 				}
-				value -= Math.log(normalizationConstant(instance));
+				if(useLogSpace){
+					value -= normalizationConstant(instance);
+				} else {
+					value -= Math.log(normalizationConstant(instance));
+				}
 			}
 			value -= regularizationTerm(point);
 //			endTime = System.currentTimeMillis();
@@ -324,10 +345,22 @@ public class CRF implements StructuredClassifier{
 				int n = instance.words.size()+2;
 				double[][] forward = new double[n][tags.size()];
 				double[][] backward = new double[n][tags.size()];
-				forward[0][tags.get(START)] = 1;
-				backward[n-1][tags.get(END)] = 1;
-				fillValues(instance, forward, true, point, CRF::sum, null);
-				fillValues(instance, backward, false, point, CRF::sum, null);
+				Function<double[], AccumulatorResult> summaryFunction;
+				if(useLogSpace){
+					summaryFunction = CRF::sumInLogSpace;
+					Arrays.fill(forward[0], Double.NEGATIVE_INFINITY);
+					Arrays.fill(backward[n-1], Double.NEGATIVE_INFINITY);
+					forward[0][tags.get(START)] = 0;
+					backward[n-1][tags.get(END)] = 0;
+				} else {
+					summaryFunction = CRF::sum;
+					Arrays.fill(forward[0], 0);
+					Arrays.fill(backward[n-1], 0);
+					forward[0][tags.get(START)] = 1;
+					backward[n-1][tags.get(END)] = 1;
+				}
+				fillValues(instance, forward, true, point, summaryFunction, null);
+				fillValues(instance, backward, false, point, summaryFunction, null);
 				forwards.put(instance, forward);
 				backwards.put(instance, backward);
 //				System.out.println(instance);
@@ -388,28 +421,41 @@ public class CRF implements StructuredClassifier{
 						int curTagIdx = tags.get(curTag);
 						for(int nextTagIdx: getNextTags(curTag, j+1, n)){
 							Tag nextTag = reverseTags[nextTagIdx];
-							double factor = computeFactor(point, instance, j, curTag, nextTag);
+							double factor;
+							if(useLogSpace){
+								factor = computeFactorInLogSpace(point, instance, j, curTag, nextTag);
+							} else {
+								factor = computeFactor(point, instance, j, curTag, nextTag);
+							}
 							for(int i: featuresActivated(instance, j, curTag, nextTag)){
 								if(i == -1) continue;
-								instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx];
+								if(useLogSpace){
+									instanceExpectation[i] += Math.exp(forward[j][curTagIdx]+factor+backward[j+1][nextTagIdx]-backward[0][tags.get(START)]);
+								} else {
+									instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx]/backward[0][tags.get(START)];
+								}
 							}
 						}
 					}
 				}
 				for(int i=0; i<featureIndices.size(); i++){
-					result[i] += instanceExpectation[i]/backward[0][tags.get(START)];
+					result[i] += instanceExpectation[i];
 				}
 			}
 			return result;
 		}
 		
 		private double computeFactor(double[] point, Instance instance, int position, Tag prevTag, Tag curTag){
+			return Math.exp(computeFactorInLogSpace(point, instance, position, prevTag, curTag));
+		}
+		
+		private double computeFactorInLogSpace(double[] point, Instance instance, int position, Tag prevTag, Tag curTag){
 			double result = 0;
 			for(int i: featuresActivated(instance, position, prevTag, curTag)){
 				if(i == -1) continue;
 				result += point[i];
 			}
-			return Math.exp(result);
+			return result;
 		}
 		
 		/**
@@ -426,7 +472,7 @@ public class CRF implements StructuredClassifier{
 		}
 		
 		/**
-		 * The value of Z for a specific instance
+		 * The value of log Z for a specific instance
 		 * @param instance
 		 * @return
 		 */
@@ -517,7 +563,11 @@ public class CRF implements StructuredClassifier{
 //					if(!isForward){
 //						System.out.printf("Pos: %d, Prev: %s, Cur: %s, Value: %.3f\n", position, prevTagArg, curTagArg, value);
 //					}
-					values[reachableTagIdx] = prevValues[reachableTagIdx]*Math.exp(value);
+					if(useLogSpace){
+						values[reachableTagIdx] = prevValues[reachableTagIdx]+value;
+					} else {
+						values[reachableTagIdx] = prevValues[reachableTagIdx]*Math.exp(value);
+					}
 				}
 				AccumulatorResult result = accumulator.apply(values);
 				curValues[curTagIdx] = result.value;
