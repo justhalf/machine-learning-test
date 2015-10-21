@@ -29,6 +29,8 @@ public class Main {
 		
 		String conllTrainingFile = "experiments/train.data";
 		String conllTestFile = "experiments/test.data";
+//		conllTrainingFile = "lihao data/training.pos";
+//		conllTestFile = "lihao data/development.pos";
 		if(useCoNLLFormat){
 			trainingData = readCoNLLData(conllTrainingFile, true);
 			testData = readCoNLLData(conllTestFile, true);
@@ -44,10 +46,10 @@ public class Main {
 		} else {
 			classifier = new HMM();
 		}
-		classifier.train(trainingData);
-//		classifier.train(reduced);
-		result = classifier.predict(devData);
-//		result = classifier.predict(reduced);
+//		classifier.train(trainingData);
+		classifier.train(reduced);
+//		result = classifier.predict(trainingData);
+		result = classifier.predict(testData);
 		if(printTestResult){
 			for(Instance instance: testData){
 				System.out.println(instance);
@@ -56,7 +58,7 @@ public class Main {
 				System.out.println(instance);
 			}
 		}
-		printScore(result, devData);
+		printScore(result, testData);
 		if(useCoNLLFormat){
 			FileWriter wr = new FileWriter("experiments/myresult");
 			Iterator<Instance> predIter = result.iterator();
