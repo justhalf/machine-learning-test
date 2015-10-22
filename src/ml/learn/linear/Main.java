@@ -18,14 +18,15 @@ public class Main {
 	public static void main(String[] args) throws Exception{
 		boolean useCRF = true;
 		boolean useCoNLLFormat = true;
+//		boolean useCoNLLFormat = false;
 		boolean printTestResult = false;
 		boolean runInteractive = false;
 		String trainingFile = "a2_data/sents.train";
 		String testFile = "a2_data/sents.test";
-		String devFile = "a2_data/sents.devt";
+//		String devFile = "a2_data/sents.devt";
 		List<Instance> trainingData = readData(trainingFile, true);
 		List<Instance> testData = readData(testFile, false);
-		List<Instance> devData = readData(devFile, true);
+//		List<Instance> devData = readData(devFile, true);
 		
 		String conllTrainingFile = "experiments/train.data";
 		String conllTestFile = "experiments/test.data";
@@ -36,9 +37,9 @@ public class Main {
 			testData = readCoNLLData(conllTestFile, true);
 		}
 		List<Instance> result;
-		List<Instance> reduced = new ArrayList<Instance>();
-		reduced.add(trainingData.get(1));
-		reduced.add(trainingData.get(3));
+//		List<Instance> reduced = new ArrayList<Instance>();
+//		reduced.add(trainingData.get(1));
+//		reduced.add(trainingData.get(3));
 //		reduced = trainingData.subList(0, 40);
 		StructuredClassifier classifier;
 		if(useCRF){
@@ -46,10 +47,11 @@ public class Main {
 		} else {
 			classifier = new HMM();
 		}
-//		classifier.train(trainingData);
-		classifier.train(reduced);
-//		result = classifier.predict(trainingData);
+//		testData = reduced;
+		classifier.train(trainingData);
+//		classifier.train(reduced);
 		result = classifier.predict(testData);
+//		result = classifier.predict(reduced);
 		if(printTestResult){
 			for(Instance instance: testData){
 				System.out.println(instance);
