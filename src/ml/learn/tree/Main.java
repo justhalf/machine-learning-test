@@ -19,9 +19,9 @@ import ml.learn.object.BinaryTree;
 
 public class Main {
 	public static void main(String[] args) throws IOException{
-//		List<BinaryTree> trainingData = getTrainingData("ptb.dev");
-//		trainingData = trainingData.subList(0, 40);
-		List<BinaryTree> trainingData = getTrainingData(null);
+		List<BinaryTree> trainingData = getTrainingData("ptb.dev");
+		trainingData = trainingData.subList(0, 40);
+//		List<BinaryTree> trainingData = getTrainingData(null);
 //		System.out.println("Converted");
 //		System.out.println(trainingData.get(0));
 		PCFG pcfg = new PCFG(trainingData);
@@ -42,8 +42,9 @@ public class Main {
 		}
 		System.out.println();
 		
-		List<BinaryTree> testData = getTestData(null);
-//		List<BinaryTree> testData = trainingData.subList(0, 10);
+//		List<BinaryTree> testData = getTestData(null);
+		List<BinaryTree> testData = getTestData("ptb.dev");
+		testData = testData.subList(0, 10);
 		Evalb metric = new Evalb("Evaluation", true);
 		for(BinaryTree tree: testData){
 			if(tree.terminals == null) tree.fillTerminals();
