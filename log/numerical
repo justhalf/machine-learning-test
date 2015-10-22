@@ -1,0 +1,66 @@
+Reading training data...
+Building features...
+Num of featureIndices: 97
+Num of tags: 8
+Preparing for minimization...
+Starting point:
+0.803 -0.902 2.081 0.764 0.985 -1.683 -0.027 0.115 -0.390 -0.643 0.052 0.521 -0.824 0.261 -0.453 1.403 0.271 -0.007 0.905 0.857 0.372 0.398 0.063 0.941 0.441 -0.732 -0.012 -0.157 -0.582 -0.206 -0.400 0.891 0.411 -1.171 -0.391 0.490 0.960 0.752 -0.658 0.645 -0.315 1.055 0.596 1.023 -2.356 -1.525 1.181 0.006 -0.137 -0.422 -0.017 0.478 0.010 -1.692 -0.461 0.842 -0.242 -0.684 -1.917 0.315 0.405 -0.215 0.956 0.281 2.214 -0.048 1.091 3.369 -2.254 -0.377 1.184 -1.029 1.448 0.633 -1.374 -0.575 0.625 -0.322 -0.678 1.787 -1.089 -1.749 0.843 1.180 0.913 0.185 0.113 -1.973 0.039 0.453 0.078 -0.324 1.453 1.001 0.757 0.574 1.029 
+Training data size = 2
+Learning type = BATCH
+Learning rate = 0.2
+Iterations = 50
+Batch size = 2
+Iteration 1: -149.136, 8.545s elapsed
+Iteration 2: -101.287, 18.060s elapsed
+Iteration 3: -83.958, 30.025s elapsed
+Iteration 4: -74.131, 39.593s elapsed
+Iteration 5: -67.387, 47.950s elapsed
+Iteration 6: -62.478, 57.672s elapsed
+Iteration 7: -58.805, 67.480s elapsed
+Iteration 8: -56.018, 75.862s elapsed
+Iteration 9: -53.886, 85.270s elapsed
+Iteration 10: -52.246, 95.356s elapsed
+Iteration 11: -50.981, 104.625s elapsed
+Iteration 12: -50.002, 113.636s elapsed
+Iteration 13: -49.243, 123.030s elapsed
+Iteration 14: -48.654, 135.009s elapsed
+Iteration 15: -48.195, 145.142s elapsed
+Iteration 16: -47.837, 156.918s elapsed
+Iteration 17: -47.558, 169.763s elapsed
+Iteration 18: -47.339, 179.455s elapsed
+Iteration 19: -47.169, 187.370s elapsed
+Iteration 20: -47.035, 194.795s elapsed
+Iteration 21: -46.930, 203.196s elapsed
+Iteration 22: -46.848, 213.959s elapsed
+Iteration 23: -46.783, 224.469s elapsed
+Iteration 24: -46.732, 235.978s elapsed
+Iteration 25: -46.693, 247.556s elapsed
+Iteration 26: -46.661, 256.469s elapsed
+Iteration 27: -46.636, 266.284s elapsed
+Iteration 28: -46.617, 277.210s elapsed
+Iteration 29: -46.601, 287.833s elapsed
+Iteration 30: -46.589, 298.265s elapsed
+Iteration 31: -46.579, 310.502s elapsed
+Iteration 32: -46.572, 319.192s elapsed
+Iteration 33: -46.566, 327.366s elapsed
+Iteration 34: -46.561, 336.381s elapsed
+Iteration 35: -46.557, 345.595s elapsed
+Iteration 36: -46.554, 355.031s elapsed
+Iteration 37: -46.552, 362.463s elapsed
+Iteration 38: -46.550, 369.319s elapsed
+Iteration 39: -46.548, 376.171s elapsed
+Iteration 40: -46.547, 383.009s elapsed
+Iteration 41: -46.546, 389.805s elapsed
+Iteration 42: -46.545, 396.630s elapsed
+Iteration 43: -46.545, 403.516s elapsed
+Iteration 44: -46.544, 410.409s elapsed
+Iteration 45: -46.544, 417.184s elapsed
+Iteration 46: -46.544, 423.969s elapsed
+Iteration 47: -46.543, 430.774s elapsed
+Iteration 48: -46.543, 437.584s elapsed
+Iteration 49: -46.543, 444.959s elapsed
+Iteration 50: -46.543, 452.143s elapsed
+Done minimizing in 452.144s
+Weights:
+0.601 0.338 0.514 0.467 1.573 0.257 0.643 1.375 1.451 0.365 0.433 2.172 0.650 0.256 -0.190 0.557 0.542 0.540 0.512 0.189 0.283 1.738 1.117 0.571 0.569 0.465 0.348 0.169 0.385 0.700 0.231 0.851 0.849 0.735 0.347 0.995 1.373 0.414 0.407 1.289 0.362 1.230 0.718 0.161 0.464 0.657 0.322 0.302 0.086 0.251 0.255 0.982 0.980 0.221 0.381 0.226 0.229 0.407 0.117 0.115 0.492 0.489 0.396 0.481 0.635 0.418 0.611 0.395 0.121 0.415 0.333 0.332 0.345 0.367 0.499 0.316 0.258 0.232 0.230 0.390 0.154 0.684 0.697 0.598 0.362 0.655 0.708 0.697 0.337 0.527 0.071 0.244 0.253 0.437 0.596 0.595 0.389 Done!
+Accuracy = 13579/19172 = 70.83%
