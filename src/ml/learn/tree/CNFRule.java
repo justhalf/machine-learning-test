@@ -11,6 +11,8 @@ public class CNFRule {
 	
 	public String terminal;
 	
+	public String feature;
+	
 	public CNFRule(Tag leftSide, Tag firstRight, Tag secondRight){
 		this.leftSide = leftSide;
 		this.firstRight = firstRight;
@@ -24,7 +26,11 @@ public class CNFRule {
 	
 	public String toString(){
 		if(terminal == null){
-			return leftSide+"->"+firstRight+" "+secondRight;
+			if(feature != null){
+				return leftSide+"->"+firstRight+" "+secondRight+"("+feature+")";
+			} else {
+				return leftSide+"->"+firstRight+" "+secondRight;
+			}
 		} else {
 			return leftSide+"->"+terminal;
 		}
@@ -37,15 +43,20 @@ public class CNFRule {
 			if(firstRight != rule.firstRight) return false;
 			if(secondRight != rule.secondRight) return false;
 			if(terminal == null){
-				return rule.terminal == null;
+				if(rule.terminal != null) return false;
 			} else {
-				return terminal.equals(rule.terminal);
+				if(!terminal.equals(rule.terminal)) return false;
+			}
+			if(feature == null){
+				return rule.feature == null;
+			} else {
+				return feature.equals(rule.feature);
 			}
 		}
 		return false;
 	}
 	
 	public int hashCode(){
-		return Arrays.hashCode(new Object[]{leftSide, firstRight, secondRight, terminal});
+		return Arrays.hashCode(new Object[]{leftSide, firstRight, secondRight, terminal, feature});
 	}
 }

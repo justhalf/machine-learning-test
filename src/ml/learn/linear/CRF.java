@@ -23,6 +23,7 @@ import ml.learn.linear.Template.Feature;
 import ml.learn.linear.Template.TagIndex;
 import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
+import ml.learn.util.Common;
 
 public class CRF implements StructuredClassifier{
 	
@@ -87,7 +88,7 @@ public class CRF implements StructuredClassifier{
 	public CRF(){
 		this(new String[]{
 //				"U00:%x[-2,0]",
-//				"U01:%x[-1,0]",
+				"U01:%x[-1,0]",
 				"U02:%x[0,0]",
 //				"U03:%x[1,0]",
 //				"U04:%x[2,0]",
@@ -95,7 +96,7 @@ public class CRF implements StructuredClassifier{
 //				"U06:%x[0,0]/%x[1,0]",
 //
 //				"U10:%x[-2,1]",
-//				"U11:%x[-1,1]",
+				"U11:%x[-1,1]",
 				"U12:%x[0,1]",
 //				"U13:%x[1,1]",
 //				"U14:%x[2,1]",
@@ -193,68 +194,6 @@ public class CRF implements StructuredClassifier{
 		return alg.run(function, startingPoint);
 	}
 	
-	private static class AccumulatorResult{
-		public double value;
-		public int maxIdx;
-		
-		public AccumulatorResult(double value, int maxIdx){
-			this.value = value;
-			this.maxIdx = maxIdx;
-		}
-		
-		public AccumulatorResult(double value){
-			this(value, -1);
-		}
-	}
-	
-	/**
-	 * Return the sum of values in the given double array, ignoring NaN
-	 * @param values
-	 * @return
-	 */
-	private static AccumulatorResult sum(double[] values){
-		double result = 0;
-		for(double value: values){
-			if(Double.isNaN(value)) continue;
-			result += value;
-		}
-		return new AccumulatorResult(result);
-	}
-	
-	/**
-	 * Return the sum of values in the given double array, in log space, ignoring NaN
-	 * @param values
-	 * @return
-	 */
-	private static AccumulatorResult sumInLogSpace(double[] values){
-		double result = 0;
-		double max = max(values).value;
-		for(double value: values){
-			if(Double.isNaN(value)) continue;
-			result += Math.exp(value-max);
-		}
-		return new AccumulatorResult(Math.log(result)+max);
-	}
-	
-	/**
-	 * Return the maximum value in the given double array, ignoring NaN.
-	 * Will also set the index of the maximum value in the array
-	 * @param values
-	 * @return
-	 */
-	private static AccumulatorResult max(double[] values){
-		double result = Double.NEGATIVE_INFINITY;
-		int parentIdx = -1;
-		for(int i=0; i<values.length; i++){
-			if(Double.isNaN(values[i])) continue;
-			if(values[i] > result){
-				result = values[i];
-				parentIdx = i;
-			}
-		}
-		return new AccumulatorResult(result, parentIdx);
-	}
-	
 	/**
 	 * A loglikelihood function
 	 * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
@@ -329,7 +268,7 @@ public class CRF implements StructuredClassifier{
 //			System.out.printf("Done calculating gradient in %.3fs\n", (endTime-startTime)/1000.0);
 			
 			// Values and gradient are negated to find the maximum
-			return new FunctionValues(-value, negate(gradient));
+			return new FunctionValues(-value, Common.negate(gradient));
 		}
 		
 		/**
@@ -354,15 +293,15 @@ public class CRF implements StructuredClassifier{
 				int n = instance.words.size()+2;
 				double[][] forward = new double[n][tags.size()];
 				double[][] backward = new double[n][tags.size()];
-				Function<double[], AccumulatorResult> summaryFunction;
+				Function<double[], Common.AccumulatorResult> summaryFunction;
 				if(useLogSpace){
-					summaryFunction = CRF::sumInLogSpace;
+					summaryFunction = Common::sumInLogSpace;
 					Arrays.fill(forward[0], Double.NEGATIVE_INFINITY);
 					Arrays.fill(backward[n-1], Double.NEGATIVE_INFINITY);
 					forward[0][tags.get(START)] = 0;
 					backward[n-1][tags.get(END)] = 0;
 				} else {
-					summaryFunction = CRF::sum;
+					summaryFunction = Common::sum;
 					Arrays.fill(forward[0], 0);
 					Arrays.fill(backward[n-1], 0);
 					forward[0][tags.get(START)] = 1;
@@ -522,7 +461,7 @@ public class CRF implements StructuredClassifier{
 		return noEnd;
 	}
 	
-	private void fillValues(Instance instance, double[][] lattice, boolean isForward, double[] weights, Function<double[], AccumulatorResult> accumulator, int[][] parentIdx){
+	private void fillValues(Instance instance, double[][] lattice, boolean isForward, double[] weights, Function<double[], Common.AccumulatorResult> accumulator, int[][] parentIdx){
 		int n = instance.words.size()+2;
 		int start, end, step;
 		if(isForward){
@@ -538,18 +477,18 @@ public class CRF implements StructuredClassifier{
 		int instanceLength = lattice.length;
 		double[] values = new double[tagSize];
 		double value=0;
-		for(int i=start; i*step<=end*step; i+=step){
-			double[] prevValues = lattice[i-step];
-			double[] curValues = lattice[i];
-			int[] curParentIdx = (parentIdx != null) ? parentIdx[i] : null;
+		for(int j=start; j*step<=end*step; j+=step){
+			double[] prevValues = lattice[j-step];
+			double[] curValues = lattice[j];
+			int[] curParentIdx = (parentIdx != null) ? parentIdx[j] : null;
 			for(int curTagIdx=0; curTagIdx<tagSize; curTagIdx++){
 				Tag curTag = reverseTags[curTagIdx];
 				Arrays.fill(values, Double.NaN);
 				int[] reachableTags;
 				if(isForward){
-					reachableTags = getPreviousTags(curTag, i, instanceLength);
+					reachableTags = getPreviousTags(curTag, j, instanceLength);
 				} else {
-					reachableTags = getNextTags(curTag, i, instanceLength);
+					reachableTags = getNextTags(curTag, j, instanceLength);
 				}
 				for(int reachableTagIdx: reachableTags){
 					Tag reachableTag = reverseTags[reachableTagIdx];
@@ -558,16 +497,16 @@ public class CRF implements StructuredClassifier{
 					if(isForward){
 						prevTagArg = reachableTag;
 						curTagArg = curTag;
-						position = i-1;
+						position = j-1;
 					} else {
 						prevTagArg = curTag;
 						curTagArg = reachableTag;
-						position = i;
+						position = j;
 					}
 					value = 0.0;
-					for(int j: featuresActivated(instance, position, prevTagArg, curTagArg)){
-						if(j == -1) continue;
-						value += weights[j];
+					for(int i: featuresActivated(instance, position, prevTagArg, curTagArg)){
+						if(i == -1) continue;
+						value += weights[i];
 					}
 //					if(!isForward){
 //						System.out.printf("Pos: %d, Prev: %s, Cur: %s, Value: %.3f\n", position, prevTagArg, curTagArg, value);
@@ -578,7 +517,7 @@ public class CRF implements StructuredClassifier{
 						values[reachableTagIdx] = prevValues[reachableTagIdx]*Math.exp(value);
 					}
 				}
-				AccumulatorResult result = accumulator.apply(values);
+				Common.AccumulatorResult result = accumulator.apply(values);
 				curValues[curTagIdx] = result.value;
 				if(curParentIdx != null){
 					curParentIdx[curTagIdx] = result.maxIdx;
@@ -791,19 +730,6 @@ public class CRF implements StructuredClassifier{
 //		System.out.printf("Value: %f\n", -values.functionValue);
 //	}
 	
-	/**
-	 * Return a double array with negated values
-	 * @param values
-	 * @return
-	 */
-	private double[] negate(double[] values){
-		double[] result = new double[values.length];
-		for(int i=0; i<values.length; i++){
-			result[i] = -values[i];
-		}
-		return result;
-	}
-
 	@Override
 	public List<Instance> predict(List<Instance> testData) {
 		List<Instance> results = new ArrayList<Instance>();
@@ -813,7 +739,7 @@ public class CRF implements StructuredClassifier{
 			int[][] parentIdx = new int[n][tags.size()];
 			double[][] lattice = new double[n][tags.size()];
 			lattice[0][tags.get(START)] = 1;
-			fillValues(instance, lattice, true, weights, CRF::max, parentIdx);
+			fillValues(instance, lattice, true, weights, Common::max, parentIdx);
 			
 			int wordCount = n-1;
 			List<TaggedWord> result = new ArrayList<TaggedWord>();

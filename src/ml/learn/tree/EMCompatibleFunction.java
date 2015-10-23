@@ -26,4 +26,10 @@ public interface EMCompatibleFunction {
 	 * @return
 	 */
 	public int numParams();
+	
+	/**
+	 * Sets the parameter of the function
+	 * @param params
+	 */
+	public void setParams(double[] params);
 }

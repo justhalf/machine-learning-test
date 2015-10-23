@@ -19,36 +19,43 @@ import ml.learn.object.BinaryTree;
 
 public class Main {
 	public static void main(String[] args) throws IOException{
+		boolean useCRF = true;
 		List<BinaryTree> trainingData = getTrainingData("ptb.dev");
-		trainingData = trainingData.subList(0, 40);
-//		List<BinaryTree> trainingData = getTrainingData(null);
+		trainingData = trainingData.subList(0, 10);
+		trainingData = getTrainingData(null);
+		
 //		System.out.println("Converted");
 //		System.out.println(trainingData.get(0));
-		PCFG pcfg = new PCFG(trainingData);
-		EMAlgo emAlgo = new EMAlgo(pcfg);
-
-		double[] startingPoint = new double[pcfg.numParams()];
-		System.out.println("Starting point:");
-		for(int i=0; i<startingPoint.length; i++){
-			startingPoint[i] = 1.0/startingPoint.length;
-			System.out.printf("%.3f ", startingPoint[i]);
-		};
-		System.out.println();
-		
-		double[] bestParams = emAlgo.getBestParams(startingPoint);
-		System.out.println("Best params:");
-		for(double bestParam: bestParams){
-			System.out.printf("%.3f ", bestParam);
+		TreeCRF treeCRF = null;
+		PCFG pcfg = null;
+		if(useCRF){
+			treeCRF = new TreeCRF();
+			treeCRF.train(trainingData);
+		} else {
+			pcfg = new PCFG(trainingData);
+			EMAlgo emAlgo = new EMAlgo(pcfg);
+			
+			double[] bestParams = emAlgo.getBestParams();
+			System.out.println("Best params:");
+			for(double bestParam: bestParams){
+				System.out.printf("%.3f ", bestParam);
+			}
+			System.out.println();
 		}
-		System.out.println();
 		
-//		List<BinaryTree> testData = getTestData(null);
+		
 		List<BinaryTree> testData = getTestData("ptb.dev");
-		testData = testData.subList(0, 10);
+		testData = testData.subList(0, 5);
+		testData = getTestData(null);
 		Evalb metric = new Evalb("Evaluation", true);
 		for(BinaryTree tree: testData){
 			if(tree.terminals == null) tree.fillTerminals();
-			BinaryTree predicted = pcfg.predict(tree.terminals, bestParams);
+			BinaryTree predicted;
+			if(useCRF){
+				predicted = treeCRF.predict(tree);
+			} else {
+				predicted = pcfg.predict(tree);
+			}
 			Tree stanfordActual = toStanfordTree(tree);
 			Tree stanfordPredicted = toStanfordTree(predicted);
 			metric.evaluate(stanfordPredicted, stanfordActual, null);
@@ -90,10 +97,13 @@ public class Main {
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN duck))(VP (VBZ is)(VBG swimming)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NNS cats))(VP (VBP are)(VBG running)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT A)(NN dog))(VP (VBD was)(VBG swimming)))"));
-			result.add(BinaryTree.parse("(ROOT (NP (DT A)(NN duck))(VP (VBZ is)(VBG running)))"));
-			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN dog))(VP (VBD is)(VBG swimming)))"));
+			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NNS ducks))(VP (VBP are)(VBG running)))"));
+			result.add(BinaryTree.parse("(ROOT (NP (DT A)(NN dog))(VP (VBD was)(VBG swimming)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN dog))(VP (VBZ ducks)(RB hastily)))"));
+			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN dog))(VP (VBZ kills)(NNS cats)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NNS cats))(VP (VBP duck)(RB hastily)))"));
+			result.add(BinaryTree.parse("(ROOT (NN I)(VP (VBP eat)(NP (NN spaghetti)(PP (IN with)(NN fish)))))"));
+			result.add(BinaryTree.parse("(ROOT (NN I)(VP (VP (VBP eat)(NN spaghetti))(PP (IN with)(NN fork))))"));
 		} else {
 			result = readPTB(fileName);
 		}
@@ -119,6 +129,8 @@ public class Main {
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN dog))(VP (VBD is)(VBG swimming)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NN dog))(VP (VBZ ducks)(RB hastily)))"));
 			result.add(BinaryTree.parse("(ROOT (NP (DT The)(NNS cats))(VP (VBP duck)(RB hastily)))"));
+			result.add(BinaryTree.parse("(ROOT (NN I)(VP (VBP eat)(NP (NN spaghetti)(PP (IN with)(NN fish)))))"));
+			result.add(BinaryTree.parse("(ROOT (NN I)(VP (VP (VBP eat)(NN spaghetti))(PP (IN with)(NN fork))))"));
 		} else {
 			result = readPTB(fileName);
 		}

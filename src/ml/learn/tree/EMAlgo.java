@@ -29,7 +29,17 @@ public class EMAlgo {
 	 * @param startingPoint
 	 * @return
 	 */
-	public double[] getBestParams(double[] startingPoint){
+	public double[] getBestParams(){
+		double[] startingPoint = new double[function.numParams()];
+		for(int i=0; i<startingPoint.length; i++){
+			startingPoint[i] = 1.0;
+		};
+		startingPoint = function.maximize(startingPoint);
+		System.out.println("Starting point:");
+		for(int i=0; i<startingPoint.length; i++){
+			System.out.printf("%.3f ", startingPoint[i]);
+		};
+		System.out.println();
 		double[] prevResult = startingPoint;
 		double[] result = null;
 		double[] expectations = null;
@@ -45,21 +55,20 @@ public class EMAlgo {
 			result = function.maximize(expectations);
 //			endTime = System.currentTimeMillis();
 //			System.out.printf("Finished maximizing params in %.3fs\n", (endTime-startTime)/1000.0);
-			System.out.printf("Iteration "+(iterNum+1)+" finished. Elapsed time: %.3fs\n", (System.currentTimeMillis()-start)/1000.0);
-			boolean hasLargeChange = false;
+			double squaredChange = 0.0;
 			for(int i=0; i<result.length; i++){
-				if(Math.abs(result[i]-prevResult[i]) >= threshold){
-					hasLargeChange = true;
-					break;
-				}
+				squaredChange += Math.pow(result[i]-prevResult[i], 2);
 			}
-			if(!hasLargeChange){
+			squaredChange /= result.length;
+			System.out.printf("Iteration %d: Average squared change: %.7f, elapsed time: %.3fs\n", iterNum+1, squaredChange, (System.currentTimeMillis()-start)/1000.0);
+			if(squaredChange < threshold){
 				break;
 			}
 			for(int i=0; i<result.length; i++){
 				prevResult[i] = result[i];
 			}
 		}
+		function.setParams(result);
 		return result;
 	}
 }
