@@ -25,7 +25,7 @@ import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
 import ml.learn.optimizer.GradientDescentMinimizer;
 import ml.learn.util.Common;
-import ml.learn.optimizer.GradientDescentMinimizer.LearningRate;
+import ml.learn.optimizer.GradientDescentMinimizer.LearningAdjustment;
 
 public class CRF implements StructuredClassifier{
 	
@@ -85,12 +85,12 @@ public class CRF implements StructuredClassifier{
 	
 	public Random random;
 	
-	boolean useSGD = true;
-//	boolean useSGD = false;
-	private double eta0 = 0.01;
+//	boolean useSGD = true;
+	boolean useSGD = false;
+	private double eta0 = 1;
 	private int iterations = 10000;
-	private int batchSize = 1;
-	private LearningRate learningRate = LearningRate.CONSTANT;
+	private int batchSize = 5;
+	private LearningAdjustment learningRate = LearningAdjustment.CONSTANT;
 	
 	/**
 	 * Create a CRF model with default feature templates
@@ -216,6 +216,7 @@ public class CRF implements StructuredClassifier{
 		public LinkedHashMap<Instance, double[][]> forwards;
 		public LinkedHashMap<Instance, double[][]> backwards;
 		public double[] empiricalDistribution;
+		public double[] staticEmpiricalDistribution;
 		
 		public String[] getReverseFeatureIndices(){
 			return reverseFeatureIndices;
@@ -225,6 +226,7 @@ public class CRF implements StructuredClassifier{
 			this.staticTrainingData = trainingData;
 			this.trainingData = trainingData;
 			empiricalDistribution = computeEmpiricalDistribution();
+			staticEmpiricalDistribution = empiricalDistribution;
 		}
 
 		private double[] computeEmpiricalDistribution(){
@@ -257,7 +259,11 @@ public class CRF implements StructuredClassifier{
 
 		public FunctionValues getValues(double[] point, List<Instance> trainingData) {
 			this.trainingData = trainingData;
-			empiricalDistribution = computeEmpiricalDistribution();
+			if(trainingData != staticTrainingData){
+				empiricalDistribution = computeEmpiricalDistribution();
+			} else {
+				empiricalDistribution = staticEmpiricalDistribution;
+			}
 //			System.out.println("Computing forward backward...");
 //			long startTime = System.currentTimeMillis();
 			computeForwardBackward(point);
@@ -299,7 +305,7 @@ public class CRF implements StructuredClassifier{
 		 */
 		private double regularizationTerm(double[] point){
 			double result = 0;
-			double scale = (double) trainingData.size()/staticTrainingData.size();
+			double scale = ((double)trainingData.size())/staticTrainingData.size();
 			for(int i=0; i<point.length; i++){
 				result += Math.pow(point[i], 2);
 			}
@@ -740,13 +746,12 @@ public class CRF implements StructuredClassifier{
 		long startTime = System.currentTimeMillis();
 		if (useSGD) {
 			GradientDescentMinimizer sgdMinimizer = new GradientDescentMinimizer();
-			sgdMinimizer.setLearningRate(learningRate);
+			sgdMinimizer.setLearningAdjustment(learningRate);
 			sgdMinimizer.setIterations(iterations);
 			sgdMinimizer.setEta0(eta0);
 			if (batchSize == 0) batchSize = logLikelihood.staticTrainingData.size(); 
 			sgdMinimizer.setBatchSize(batchSize);
-//			weights = sgdMinimizer.minimize(logLikelihood, startingPoint);
-			weights = sgdMinimizer.minimize2(logLikelihood, startingPoint);
+			weights = sgdMinimizer.minimize(logLikelihood, startingPoint);
 		} else {
 			Result result = null;
 			try {

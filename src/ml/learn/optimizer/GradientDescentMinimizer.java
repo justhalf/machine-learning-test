@@ -1,7 +1,6 @@
 package ml.learn.optimizer;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -11,26 +10,27 @@ import ml.learn.linear.Instance;
 
 public class GradientDescentMinimizer {
 		
-	public enum LearningRate {
+	public enum LearningAdjustment {
 		OPTIMAL, CONSTANT, INVT
 	};
 	
-	private LearningRate learningRate;
+	private LearningAdjustment learningAdjustment;
 	private double eta0; // initial learning rate
 	private double alpha; // regularization term
-	private double gamma = 0.1; // eta0 multiplier
+	private double gamma = 0.8; // eta0 multiplier
 	private int timestep = 10000; // update eta every n timestep
 	private int iterations;
 	private int batchSize;
 	private static Random random = new Random(1);
+	private static final boolean CHECK_GRADIENT = false;
 	
 	public GradientDescentMinimizer() {
 		// defaults to SGD
-		this(LearningRate.CONSTANT, 0.01, 1.0, 50, 1);
+		this(LearningAdjustment.CONSTANT, 0.01, 1.0, 50, 1);
 	}
 
-	public GradientDescentMinimizer(LearningRate learningRate, double eta0, double alpha, int iterations, int batchSize) {
-		setLearningRate(learningRate);
+	public GradientDescentMinimizer(LearningAdjustment learningAdjustment, double eta0, double alpha, int iterations, int batchSize) {
+		setLearningAdjustment(learningAdjustment);
 		setEta0(eta0);
 		setAlpha(alpha);
 		setIterations(iterations);
@@ -38,61 +38,29 @@ public class GradientDescentMinimizer {
 	}
 
 	public GradientDescentMinimizer(double eta0, int iterations) {
-		this(LearningRate.CONSTANT, eta0, 1.0, iterations, 1);
+		this(LearningAdjustment.CONSTANT, eta0, 1.0, iterations, 1);
 	}
 	
 	public double[] minimize(LogLikelihood fun, double[] startingWeights) {
-		boolean useNumeric = false;
-		int dim = startingWeights.length;
-		double weights[] = startingWeights.clone();
-		List<Instance> trainingData = new ArrayList<Instance>(fun.staticTrainingData);
-		System.out.println("Training data size = "+trainingData.size());
-		System.out.println("Learning rate = "+learningRate);
-		System.out.println("eta0 = "+eta0);
-		System.out.println("Iterations = "+iterations);
-		System.out.println("Batch size = "+batchSize);
-		long startTime = System.currentTimeMillis();
-		int cnt = 0;
-		for (int i = 0; i < iterations; i++) {
-			Collections.shuffle(trainingData);
-			for (int j = 0; j < trainingData.size(); j+=batchSize) {
-				int endIdx = Math.min(j+batchSize, trainingData.size());
-				List<Instance> subData = trainingData.subList(j, endIdx);
-				FunctionValues valGrad = fun.getValues(weights, subData);
-				double[] numGrads = new double[dim];
-				if (useNumeric) numGrads = numericalGradient(fun, weights, subData);
-				long endTime = System.currentTimeMillis();
-				if (iterations*trainingData.size() <= 500 || cnt % 500 == 0) {
-					FunctionValues curF = fun.getValues(weights, fun.staticTrainingData);
-					System.out.printf("Iteration %d.%d: %.3f, %.3fs elapsed\n", (i+1), (j+1), (-curF.functionValue), (endTime-startTime)/1000.0);
-				}
-				for (int k = 0; k < dim; k++) {
-					if (!useNumeric) {
-						weights[k] = weights[k] - getEtaT(i*trainingData.size()+j)/batchSize*valGrad.gradient[k];
-					} else {
-						weights[k] = weights[k] - getEtaT(i*trainingData.size()+j)/batchSize*numGrads[k];
-					}
-				}
-				cnt++;
-			}
+		if(CHECK_GRADIENT){
+			gradientCheck(fun, startingWeights, fun.staticTrainingData);
 		}
-		return weights;
-	}
-	
-	public double[] minimize2(LogLikelihood fun, double[] startingWeights) {
 		boolean useNumeric = false;
 		int dim = startingWeights.length;
 		double weights[] = startingWeights.clone();
 		List<Instance> trainingData = fun.staticTrainingData;
 
 		System.out.println("Training data size = "+trainingData.size());
-		System.out.println("Learning rate = "+learningRate);
-		if (learningRate != LearningRate.INVT)
+		System.out.println("Learning rate = "+learningAdjustment);
+		if (learningAdjustment != LearningAdjustment.INVT)
 			System.out.println("eta0 = "+eta0);
 		System.out.println("Iterations = "+iterations);
 		System.out.println("Batch size = "+batchSize);
 		
 		long startTime = System.currentTimeMillis();
+		double prevVal = 0.0;
+		double diff = 0.0;
+		String suffix = "";
 		for (int i = 0; i < iterations; i++) {
 			List<Instance> sampleData = new ArrayList<Instance>();
 			if (batchSize == trainingData.size()) {
@@ -108,8 +76,19 @@ public class GradientDescentMinimizer {
 			if (useNumeric) numGrads = numericalGradient(fun, weights, sampleData);
 			long endTime = System.currentTimeMillis();
 			if (iterations <= 500 || i % 500 == 0) {
-				FunctionValues curF = fun.getValues(weights, fun.staticTrainingData);
-				System.out.printf("Iteration %d: %.3f, %.3fs elapsed\n", (i+1), (-curF.functionValue), (endTime-startTime)/1000.0);
+				double curVal = -fun.getValues(weights).functionValue;
+				if(prevVal == 0.0){
+					diff = curVal - prevVal;
+					suffix = "";
+				} else {
+					diff = 100.0*(curVal - prevVal)/Math.abs(prevVal);
+					suffix = "%";
+				}
+				System.out.printf("Iteration %d: %.3f (%+.6f%s), %.3fs elapsed\n", i+1, curVal, diff, suffix, (endTime-startTime)/1000.0);
+				if(diff < 0){
+					eta0 /= 1.25;
+				}
+				prevVal = curVal;
 			}
 			
 			for (int j = 0; j < dim; j++) {
@@ -124,10 +103,10 @@ public class GradientDescentMinimizer {
 	}
 	
 	private double getEtaT(int t) {
-		if (learningRate == LearningRate.OPTIMAL) {
+		if (learningAdjustment == LearningAdjustment.OPTIMAL) {
 			return eta0*Math.pow(gamma, t/timestep);
 			//return eta0/(1+alpha*eta0*t);
-		} else if (learningRate == LearningRate.INVT) {
+		} else if (learningAdjustment == LearningAdjustment.INVT) {
 			return 1.0/(t+1);
 		}
 		return eta0; // constant eta
@@ -185,12 +164,12 @@ public class GradientDescentMinimizer {
 		return diff/Math.max(abs1, abs2);
 	}
 	
-	public LearningRate getLearningRate() {
-		return learningRate;
+	public LearningAdjustment getLearningRate() {
+		return learningAdjustment;
 	}
 
-	public void setLearningRate(LearningRate learningRate) {
-		this.learningRate = learningRate;
+	public void setLearningAdjustment(LearningAdjustment learningRate) {
+		this.learningAdjustment = learningRate;
 	}
 
 	public double getEta0() {

@@ -18,7 +18,6 @@ public class Main {
 	public static void main(String[] args) throws Exception{
 		boolean useCRF = true;
 		boolean useCoNLLFormat = true;
-//		boolean useCoNLLFormat = false;
 		boolean printTestResult = false;
 		boolean runInteractive = false;
 		String trainingFile = "a2_data/sents.train";
