@@ -11,14 +11,20 @@ import ml.learn.linear.Instance;
 public class GradientDescentMinimizer {
 		
 	public enum LearningAdjustment {
-		OPTIMAL, CONSTANT, INVT
+		OPTIMAL, CONSTANT, INVT, INTERVAL
 	};
 	
 	private LearningAdjustment learningAdjustment;
+	public int interval = 1; // for printing
+	public int maxIterPrintAll = 100; 
 	private double eta0; // initial learning rate
 	private double alpha; // regularization term
-	private double gamma = 0.8; // eta0 multiplier
-	private int timestep = 10000; // update eta every n timestep
+	private double gamma; // eta0 multiplier
+	private int timestep; // update eta every n timestep		
+	private double momentum;
+	private boolean averaged;
+	private boolean adaGrad;
+
 	private int iterations;
 	private int batchSize;
 	private static Random random = new Random(1);
@@ -54,6 +60,10 @@ public class GradientDescentMinimizer {
 		System.out.println("Learning rate = "+learningAdjustment);
 		if (learningAdjustment != LearningAdjustment.INVT)
 			System.out.println("eta0 = "+eta0);
+		if (learningAdjustment == LearningAdjustment.INTERVAL) {
+			System.out.println("Timestep = "+timestep);
+			System.out.println("Gamma = "+gamma);
+		}
 		System.out.println("Iterations = "+iterations);
 		System.out.println("Batch size = "+batchSize);
 		
@@ -61,6 +71,10 @@ public class GradientDescentMinimizer {
 		double prevVal = 0.0;
 		double diff = 0.0;
 		String suffix = "";
+		
+		double prevUpdate[] = new double[weights.length];
+		double sumWeights[] = startingWeights.clone();
+		double sqrSumWeights[] = startingWeights.clone();
 		for (int i = 0; i < iterations; i++) {
 			List<Instance> sampleData = new ArrayList<Instance>();
 			if (batchSize == trainingData.size()) {
@@ -75,8 +89,14 @@ public class GradientDescentMinimizer {
 			double[] numGrads = new double[dim];
 			if (useNumeric) numGrads = numericalGradient(fun, weights, sampleData);
 			long endTime = System.currentTimeMillis();
-			if (iterations <= 500 || i % 500 == 0) {
-				double curVal = -fun.getValues(weights).functionValue;
+			if (iterations <= maxIterPrintAll || i % interval == 0) {
+				double curWeights[] = weights.clone();
+				if (averaged) {
+					for (int j = 0; j < dim; j++) {
+						curWeights[j] = sumWeights[j]/(i+1);
+					}
+				}
+				double curVal = -fun.getValues(curWeights).functionValue;
 				if(prevVal == 0.0){
 					diff = curVal - prevVal;
 					suffix = "";
@@ -85,18 +105,33 @@ public class GradientDescentMinimizer {
 					suffix = "%";
 				}
 				System.out.printf("Iteration %d: %.3f (%+.6f%s), %.3fs elapsed\n", i+1, curVal, diff, suffix, (endTime-startTime)/1000.0);
-				if(diff < 0){
-					eta0 /= 1.25;
-				}
+//				if(diff < 0){
+//					eta0 /= 1.25;
+//				}
 				prevVal = curVal;
 			}
-			
 			for (int j = 0; j < dim; j++) {
-				if (!useNumeric) {
-					weights[j] = weights[j] - getEtaT(i)/batchSize*valGrad.gradient[j];
+				double gradJ = useNumeric ? numGrads[j] : valGrad.gradient[j];
+				double newUpdateJ;
+				if (adaGrad) {
+					newUpdateJ = - getEtaT(i)/batchSize*gradJ/(Math.sqrt(sqrSumWeights[j]));
 				} else {
-					weights[j] = weights[j] - getEtaT(i)/batchSize*numGrads[j];
+					newUpdateJ = momentum*prevUpdate[j] - getEtaT(i)/batchSize*gradJ;
 				}
+				weights[j] += newUpdateJ;
+//				if (!useNumeric) {
+//					weights[j] = weights[j] - getEtaT(i)/batchSize*valGrad.gradient[j];
+//				} else {
+//					weights[j] = weights[j] - getEtaT(i)/batchSize*numGrads[j];
+//				}
+				prevUpdate[j] = newUpdateJ;
+				sumWeights[j] += weights[j];
+				sqrSumWeights[j] += (gradJ*gradJ);
+			}
+		}
+		if (averaged) {
+			for (int i = 0; i < dim; i++) {
+				weights[i] = sumWeights[i]/iterations;
 			}
 		}
 		return weights;
@@ -104,10 +139,11 @@ public class GradientDescentMinimizer {
 	
 	private double getEtaT(int t) {
 		if (learningAdjustment == LearningAdjustment.OPTIMAL) {
-			return eta0*Math.pow(gamma, t/timestep);
-			//return eta0/(1+alpha*eta0*t);
+			return eta0/(1+alpha*eta0*t);
 		} else if (learningAdjustment == LearningAdjustment.INVT) {
 			return 1.0/(t+1);
+		} else if (learningAdjustment == LearningAdjustment.INTERVAL) {
+			return eta0*Math.pow(gamma, t/timestep);
 		}
 		return eta0; // constant eta
 	}
@@ -202,5 +238,29 @@ public class GradientDescentMinimizer {
 
 	public void setBatchSize(int batchSize) {
 		this.batchSize = batchSize;
+	}
+	
+	public double getGamma() {
+		return gamma;
+	}
+
+	public void setGamma(double gamma) {
+		this.gamma = gamma;
+	}
+
+	public int getTimestep() {
+		return timestep;
+	}
+
+	public void setTimestep(int timestep) {
+		this.timestep = timestep;
+	}
+	
+	public double getMomentum() {
+		return momentum;
+	}
+
+	public void setMomentum(double momentum) {
+		this.momentum = momentum;
 	}
 }

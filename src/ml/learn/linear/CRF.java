@@ -6,11 +6,16 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
 import lbfgsb.DifferentiableFunction;
@@ -83,14 +88,27 @@ public class CRF implements StructuredClassifier{
 	/** Whether to calculate forward backward in log space */
 	public boolean useLogSpace = true;
 	
+	
 	public Random random;
 	
-//	boolean useSGD = true;
-	boolean useSGD = false;
-	private double eta0 = 1;
-	private int iterations = 10000;
-	private int batchSize = 5;
-	private LearningAdjustment learningRate = LearningAdjustment.CONSTANT;
+	public boolean useMultiThread = true;
+	public int numThreads = 8;
+	private ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+	
+	// PARAMS
+	boolean useSGD = true;
+//	boolean useSGD = false;
+	private double eta0 = 0.1;
+	private int iterations = 100000;
+	private int batchSize = 1;
+//	private LearningAdjustment learningRate = LearningAdjustment.CONSTANT;
+	private LearningAdjustment learningRate = LearningAdjustment.INVT;
+	private double lambdaReg;
+	private int timestep = 45000;
+	private double gamma = 0.25;
+	
+	int interval = 1000; // for printing
+	int maxIterPrintAll = 0;
 	
 	/**
 	 * Create a CRF model with default feature templates
@@ -98,7 +116,7 @@ public class CRF implements StructuredClassifier{
 	public CRF(){
 		this(new String[]{
 //				"U00:%x[-2,0]",
-				"U01:%x[-1,0]",
+//				"U01:%x[-1,0]",
 				"U02:%x[0,0]",
 //				"U03:%x[1,0]",
 //				"U04:%x[2,0]",
@@ -106,8 +124,8 @@ public class CRF implements StructuredClassifier{
 //				"U06:%x[0,0]/%x[1,0]",
 //
 //				"U10:%x[-2,1]",
-				"U11:%x[-1,1]",
-				"U12:%x[0,1]",
+//				"U11:%x[-1,1]",
+//				"U12:%x[0,1]",
 //				"U13:%x[1,1]",
 //				"U14:%x[2,1]",
 //				"U15:%x[-2,1]/%x[-1,1]",
@@ -122,6 +140,8 @@ public class CRF implements StructuredClassifier{
 				"B",
 				});
 	}
+	
+	// 1,2,11,12 for NP chunking
 	
 	/**
 	 * Create a CRF model with the feature templates taken from the specified file name.
@@ -213,8 +233,10 @@ public class CRF implements StructuredClassifier{
 		
 		public List<Instance> trainingData;
 		public List<Instance> staticTrainingData;
-		public LinkedHashMap<Instance, double[][]> forwards;
-		public LinkedHashMap<Instance, double[][]> backwards;
+//		public LinkedHashMap<Instance, double[][]> forwards;
+//		public LinkedHashMap<Instance, double[][]> backwards;
+		public Map<Instance, double[][]> forwards;
+		public Map<Instance, double[][]> backwards;
 		public double[] empiricalDistribution;
 		public double[] staticEmpiricalDistribution;
 		
@@ -271,20 +293,56 @@ public class CRF implements StructuredClassifier{
 //			System.out.printf("Done forward-backward in %.3fs\n", (endTime-startTime)/1000.0);
 			double value = 0.0;
 //			startTime = System.currentTimeMillis();
+			List<Callable<Object>> tasks = new ArrayList<Callable<Object>>();
 			for(Instance instance: trainingData){
-				int n = instance.words.size()+2;
-				for(int position=0; position<n-1; position++){
-					Tag prevTag = instance.getTagAt(position-1);
-					Tag curTag = instance.getTagAt(position);
-					for(int i: featuresActivated(instance, position, prevTag, curTag)){
-						if(i == -1) continue;
-						value += point[i];
+				if (useMultiThread) {
+					tasks.add(new Callable<Object>() {
+
+						@Override
+						public Object call() throws Exception {
+							double instVal = 0.0;
+							int n = instance.words.size()+2;
+							for(int position=0; position<n-1; position++){
+								Tag prevTag = instance.getTagAt(position-1);
+								Tag curTag = instance.getTagAt(position);
+								for(int i: featuresActivated(instance, position, prevTag, curTag)){
+									if(i == -1) continue;
+									instVal += point[i];
+								}
+							}
+							if(useLogSpace){
+								instVal -= normalizationConstant(instance);
+							} else {
+								instVal -= Math.log(normalizationConstant(instance));
+							}
+							return instVal;
+						}
+					});
+				} else {
+					int n = instance.words.size()+2;
+					for(int position=0; position<n-1; position++){
+						Tag prevTag = instance.getTagAt(position-1);
+						Tag curTag = instance.getTagAt(position);
+						for(int i: featuresActivated(instance, position, prevTag, curTag)){
+							if(i == -1) continue;
+							value += point[i];
+						}
+					}
+					if(useLogSpace){
+						value -= normalizationConstant(instance);
+					} else {
+						value -= Math.log(normalizationConstant(instance));
 					}
 				}
-				if(useLogSpace){
-					value -= normalizationConstant(instance);
-				} else {
-					value -= Math.log(normalizationConstant(instance));
+			}
+			if (useMultiThread) {
+				try {
+					List<Future<Object>> result = executor.invokeAll(tasks);
+					for (Future<Object> f: result) {
+						value += (double) f.get();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
 			value -= regularizationTerm(point);
@@ -312,57 +370,103 @@ public class CRF implements StructuredClassifier{
 			result /= 2*Math.pow(regularizationParameter, 2)*scale;
 			return result;
 		}
-		
+				
 		private void computeForwardBackward(double[] point){
-			forwards = new LinkedHashMap<Instance, double[][]>();
-			backwards = new LinkedHashMap<Instance, double[][]>();
+			if (useMultiThread) {
+				forwards = Collections.synchronizedMap(new LinkedHashMap<Instance, double[][]>());
+				backwards = Collections.synchronizedMap(new LinkedHashMap<Instance, double[][]>());
+			} else {
+				forwards = new LinkedHashMap<Instance, double[][]>();
+				backwards = new LinkedHashMap<Instance, double[][]>();
+			}
 //			int size = trainingData.size();
 //			int total = 0;
+			
+			List<Callable<Object>> tasks = new ArrayList<Callable<Object>>();
 			for(Instance instance: trainingData){
-				int n = instance.words.size()+2;
-				double[][] forward = new double[n][tags.size()];
-				double[][] backward = new double[n][tags.size()];
-				Function<double[], Common.AccumulatorResult> summaryFunction;
-				if(useLogSpace){
-					summaryFunction = Common::sumInLogSpace;
-					Arrays.fill(forward[0], Double.NEGATIVE_INFINITY);
-					Arrays.fill(backward[n-1], Double.NEGATIVE_INFINITY);
-					forward[0][tags.get(START)] = 0;
-					backward[n-1][tags.get(END)] = 0;
+				if (useMultiThread) {
+					tasks.add(new Callable<Object>() {
+	
+						@Override
+						public Object call() throws Exception {
+							int n = instance.words.size()+2;
+							double[][] forward = new double[n][tags.size()];
+							double[][] backward = new double[n][tags.size()];
+							Function<double[], Common.AccumulatorResult> summaryFunction;
+							if(useLogSpace){
+								summaryFunction = Common::sumInLogSpace;
+								Arrays.fill(forward[0], Double.NEGATIVE_INFINITY);
+								Arrays.fill(backward[n-1], Double.NEGATIVE_INFINITY);
+								forward[0][tags.get(START)] = 0;
+								backward[n-1][tags.get(END)] = 0;
+							} else {
+								summaryFunction = Common::sum;
+								Arrays.fill(forward[0], 0);
+								Arrays.fill(backward[n-1], 0);
+								forward[0][tags.get(START)] = 1;
+								backward[n-1][tags.get(END)] = 1;
+							}
+							fillValues(instance, forward, true, point, summaryFunction, null);
+							fillValues(instance, backward, false, point, summaryFunction, null);
+							forwards.put(instance, forward);
+							backwards.put(instance, backward);
+							return null;
+						}
+						
+					});
 				} else {
-					summaryFunction = Common::sum;
-					Arrays.fill(forward[0], 0);
-					Arrays.fill(backward[n-1], 0);
-					forward[0][tags.get(START)] = 1;
-					backward[n-1][tags.get(END)] = 1;
+					int n = instance.words.size()+2;
+					double[][] forward = new double[n][tags.size()];
+					double[][] backward = new double[n][tags.size()];
+					Function<double[], Common.AccumulatorResult> summaryFunction;
+					if(useLogSpace){
+						summaryFunction = Common::sumInLogSpace;
+						Arrays.fill(forward[0], Double.NEGATIVE_INFINITY);
+						Arrays.fill(backward[n-1], Double.NEGATIVE_INFINITY);
+						forward[0][tags.get(START)] = 0;
+						backward[n-1][tags.get(END)] = 0;
+					} else {
+						summaryFunction = Common::sum;
+						Arrays.fill(forward[0], 0);
+						Arrays.fill(backward[n-1], 0);
+						forward[0][tags.get(START)] = 1;
+						backward[n-1][tags.get(END)] = 1;
+					}
+					fillValues(instance, forward, true, point, summaryFunction, null);
+					fillValues(instance, backward, false, point, summaryFunction, null);
+					forwards.put(instance, forward);
+					backwards.put(instance, backward);
+//					System.out.println(instance);
+//					System.out.println("Forward:");
+//					for(int j=0; j<tags.size(); j++){
+//						System.out.printf("%15s ", reverseTags[j]);
+//					}
+//					System.out.println();
+//					for(int i=0; i<n; i++){
+//						for(int j=0; j<tags.size(); j++){
+//							System.out.printf("%15.2f ", forward[i][j]);
+//						}
+//						System.out.println();
+//					}
+//					System.out.println("Backward:");
+//					for(int i=0; i<n; i++){
+//						for(int j=0; j<tags.size(); j++){
+//							System.out.printf("%15.2f ", backward[i][j]);
+//						}
+//						System.out.println();
+//					}
+//					total++;
+//					if(total % 100 == 0){
+//						System.out.println(String.format("Completed %d/%d", total, size));
+//					}
 				}
-				fillValues(instance, forward, true, point, summaryFunction, null);
-				fillValues(instance, backward, false, point, summaryFunction, null);
-				forwards.put(instance, forward);
-				backwards.put(instance, backward);
-//				System.out.println(instance);
-//				System.out.println("Forward:");
-//				for(int j=0; j<tags.size(); j++){
-//					System.out.printf("%15s ", reverseTags[j]);
-//				}
-//				System.out.println();
-//				for(int i=0; i<n; i++){
-//					for(int j=0; j<tags.size(); j++){
-//						System.out.printf("%15.2f ", forward[i][j]);
-//					}
-//					System.out.println();
-//				}
-//				System.out.println("Backward:");
-//				for(int i=0; i<n; i++){
-//					for(int j=0; j<tags.size(); j++){
-//						System.out.printf("%15.2f ", backward[i][j]);
-//					}
-//					System.out.println();
-//				}
-//				total++;
-//				if(total % 100 == 0){
-//					System.out.println(String.format("Completed %d/%d", total, size));
-//				}
+			}
+			if (useMultiThread) {
+				try {
+					executor.invokeAll(tasks);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 		}
 		
@@ -396,37 +500,87 @@ public class CRF implements StructuredClassifier{
 		 */
 		private double[] computeModelDistribution(double[] point){
 			double[] result = new double[featureIndices.size()];
-			double[] instanceExpectation = new double[featureIndices.size()];
 			Arrays.fill(result, 0);
+			List<Callable<Object>> tasks = new ArrayList<Callable<Object>>();
 			for(Instance instance: trainingData){
-				Arrays.fill(instanceExpectation, 0);
-				int n = instance.words.size()+2;
-				double[][] forward = forwards.get(instance);
-				double[][] backward = backwards.get(instance);
-				for(int j=0; j<n-1; j++){
-					for(Tag curTag: tags.keySet()){
-						int curTagIdx = tags.get(curTag);
-						for(int nextTagIdx: getNextTags(curTag, j, n)){
-							Tag nextTag = reverseTags[nextTagIdx];
-							double factor;
-							if(useLogSpace){
-								factor = computeFactorInLogSpace(point, instance, j, curTag, nextTag);
-							} else {
-								factor = computeFactor(point, instance, j, curTag, nextTag);
+				if (useMultiThread) {
+					tasks.add(new Callable<Object>() {
+
+						@Override
+						public Object call() throws Exception {
+							double[] instanceExpectation = new double[featureIndices.size()];
+//							Arrays.fill(instanceExpectation, 0);
+							int n = instance.words.size()+2;
+							double[][] forward = forwards.get(instance);
+							double[][] backward = backwards.get(instance);
+							for(int j=0; j<n-1; j++){
+								for(Tag curTag: tags.keySet()){
+									int curTagIdx = tags.get(curTag);
+									for(int nextTagIdx: getNextTags(curTag, j, n)){
+										Tag nextTag = reverseTags[nextTagIdx];
+										double factor;
+										if(useLogSpace){
+											factor = computeFactorInLogSpace(point, instance, j, curTag, nextTag);
+										} else {
+											factor = computeFactor(point, instance, j, curTag, nextTag);
+										}
+										for(int i: featuresActivated(instance, j, curTag, nextTag)){
+											if(i == -1) continue;
+											if(useLogSpace){
+												instanceExpectation[i] += Math.exp(forward[j][curTagIdx]+factor+backward[j+1][nextTagIdx]-backward[0][tags.get(START)]);
+											} else {
+												instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx]/backward[0][tags.get(START)];
+											}
+										}
+									}
+								}
 							}
-							for(int i: featuresActivated(instance, j, curTag, nextTag)){
-								if(i == -1) continue;
+							for(int i=0; i<featureIndices.size(); i++){
+								synchronized (result) {
+									result[i] += instanceExpectation[i];
+								}
+							}
+							return null;
+						}
+					});
+				} else {
+					double[] instanceExpectation = new double[featureIndices.size()];
+//					Arrays.fill(instanceExpectation, 0);
+					int n = instance.words.size()+2;
+					double[][] forward = forwards.get(instance);
+					double[][] backward = backwards.get(instance);
+					for(int j=0; j<n-1; j++){
+						for(Tag curTag: tags.keySet()){
+							int curTagIdx = tags.get(curTag);
+							for(int nextTagIdx: getNextTags(curTag, j, n)){
+								Tag nextTag = reverseTags[nextTagIdx];
+								double factor;
 								if(useLogSpace){
-									instanceExpectation[i] += Math.exp(forward[j][curTagIdx]+factor+backward[j+1][nextTagIdx]-backward[0][tags.get(START)]);
+									factor = computeFactorInLogSpace(point, instance, j, curTag, nextTag);
 								} else {
-									instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx]/backward[0][tags.get(START)];
+									factor = computeFactor(point, instance, j, curTag, nextTag);
+								}
+								for(int i: featuresActivated(instance, j, curTag, nextTag)){
+									if(i == -1) continue;
+									if(useLogSpace){
+										instanceExpectation[i] += Math.exp(forward[j][curTagIdx]+factor+backward[j+1][nextTagIdx]-backward[0][tags.get(START)]);
+									} else {
+										instanceExpectation[i] += forward[j][curTagIdx]*factor*backward[j+1][nextTagIdx]/backward[0][tags.get(START)];
+									}
 								}
 							}
 						}
 					}
+					for(int i=0; i<featureIndices.size(); i++){
+						result[i] += instanceExpectation[i];
+					}
 				}
-				for(int i=0; i<featureIndices.size(); i++){
-					result[i] += instanceExpectation[i];
+			}
+			if (useMultiThread) {
+				try {
+					executor.invokeAll(tasks);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
 			}
 			return result;
@@ -557,11 +711,21 @@ public class CRF implements StructuredClassifier{
 						values[reachableTagIdx] = prevValues[reachableTagIdx]*Math.exp(value);
 					}
 				}
+//				Common.AccumulatorResult result;
+//				if (isTraining) {
+//					if (useLogSpace)
+//						result = Common.sumInLogSpace(values);
+//					else
+//						result = Common.sum(values);
+//				} else {
+//					result = Common.max(values);
+//				}
 				Common.AccumulatorResult result = accumulator.apply(values);
 				curValues[curTagIdx] = result.value;
 				if(curParentIdx != null){
 					curParentIdx[curTagIdx] = result.maxIdx;
 				}
+				
 			}
 		}
 	}
@@ -686,11 +850,11 @@ public class CRF implements StructuredClassifier{
 		int[] result = new int[instance.features[position].length];
 		int idx = 0;
 		for(Feature feature: instance.features[position]){
-			if(feature.present(prevTag, curTag)){
+//			if(feature.present(prevTag, curTag)){
 				result[idx] = feature.getFeatureIndex(prevTag, curTag);
-			} else {
-				result[idx] = -1;
-			}
+//			} else {
+//				result[idx] = -1;
+//			}
 			idx++;
 		}
 		return result;
@@ -751,6 +915,15 @@ public class CRF implements StructuredClassifier{
 			sgdMinimizer.setEta0(eta0);
 			if (batchSize == 0) batchSize = logLikelihood.staticTrainingData.size(); 
 			sgdMinimizer.setBatchSize(batchSize);
+			double scale = ((double)batchSize)/logLikelihood.staticTrainingData.size();
+			lambdaReg = scale/Math.pow(regularizationParameter, 2);
+			sgdMinimizer.setAlpha(lambdaReg);
+			sgdMinimizer.setTimestep(timestep);
+			sgdMinimizer.setGamma(gamma);
+			
+			sgdMinimizer.maxIterPrintAll = maxIterPrintAll;
+			sgdMinimizer.interval = interval;
+			
 			weights = sgdMinimizer.minimize(logLikelihood, startingPoint);
 		} else {
 			Result result = null;
