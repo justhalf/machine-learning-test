@@ -73,14 +73,16 @@ public class BinaryTree {
 		if(label.startsWith("@")){
 			label = label.substring(1);
 		}
-		if(tree.isPhrasal() && !tree.isPreTerminal()){
+		if(tree.isPhrasal()){
 			if(tree.numChildren() == 2){
 				result.left = fromStanfordTree(tree.firstChild());
 				result.right = fromStanfordTree(tree.lastChild());
 				result.value = new TaggedWord("", Tag.get(label));
 			} else {
 				result = fromStanfordTree(tree.firstChild());
-				result.value = new TaggedWord(result.value.word(), Tag.get(label));
+				if(tree.getLeaves().size() > 1){
+					result.value = new TaggedWord(result.value.word(), Tag.get(label));
+				}
 			}
 		} else {
 			result.value = new TaggedWord(tree.firstChild().value(), Tag.get(label));

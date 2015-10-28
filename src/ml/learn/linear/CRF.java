@@ -19,13 +19,14 @@ import lbfgsb.IterationFinishedListener;
 import lbfgsb.LBFGSBException;
 import lbfgsb.Minimizer;
 import lbfgsb.Result;
+import lbfgsb.StopConditions;
 import ml.learn.linear.Template.Feature;
 import ml.learn.linear.Template.TagIndex;
 import ml.learn.object.Tag;
 import ml.learn.object.TaggedWord;
 import ml.learn.optimizer.GradientDescentMinimizer;
-import ml.learn.util.Common;
 import ml.learn.optimizer.GradientDescentMinimizer.LearningAdjustment;
+import ml.learn.util.Common;
 
 public class CRF implements StructuredClassifier{
 	
@@ -84,6 +85,11 @@ public class CRF implements StructuredClassifier{
 	public boolean useLogSpace = true;
 	
 	public Random random;
+	
+	public static final int MAX_ITER = 1000;
+	static {
+		StopConditions.defaultMaxIterations = MAX_ITER;
+	}
 	
 //	boolean useSGD = true;
 	boolean useSGD = false;
@@ -161,7 +167,7 @@ public class CRF implements StructuredClassifier{
 		random = new Random(0);
 		tags = new LinkedHashMap<Tag, Integer>();
 		words = new LinkedHashMap<String, Integer>();
-		regularizationParameter = 1.0;
+		regularizationParameter = 10.0;
 		this.templates = templates;
 		this.tagIndices = new LinkedHashMap<String, TagIndex>();
 	}
@@ -686,11 +692,7 @@ public class CRF implements StructuredClassifier{
 		int[] result = new int[instance.features[position].length];
 		int idx = 0;
 		for(Feature feature: instance.features[position]){
-			if(feature.present(prevTag, curTag)){
-				result[idx] = feature.getFeatureIndex(prevTag, curTag);
-			} else {
-				result[idx] = -1;
-			}
+			result[idx] = feature.getFeatureIndex(prevTag, curTag);
 			idx++;
 		}
 		return result;

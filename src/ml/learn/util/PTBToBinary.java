@@ -23,7 +23,7 @@ public class PTBToBinary {
 		List<BinaryTree> trainingData = readPTB("ptb.dev");
 		try (FileWriter writer = new FileWriter("ptb-binary.dev")){
 			for(BinaryTree tree: trainingData){
-				writer.write(toStanfordTree(tree).toString()+"\n");
+				writer.write(toStanfordTree(tree).toString().replace(") ", ")")+"\n");
 			}
 		}
 		System.out.println("Conversion done");
