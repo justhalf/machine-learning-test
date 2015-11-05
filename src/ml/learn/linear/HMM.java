@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import ml.learn.object.Tag;
@@ -57,6 +58,12 @@ public class HMM implements StructuredClassifier{
 	/** To use morphology features */
 	public boolean useMorphologyFeatures;
 	
+	/** To reduce smoothing effect */
+	public boolean reduceSmoothingEffect;
+	
+	/** To use hapax legomena to estimate unknown word count per tag */
+	public boolean useHapaxLegomena;
+	
 	/**
 	 * Enumeration of possible smoothing method
 	 * @author Aldrian Obaja <aldrianobaja.m@gmail.com>
@@ -71,8 +78,14 @@ public class HMM implements StructuredClassifier{
 	 */
 	public HMM(){
 		smoothingMethod = SmoothingMethod.ADD_ONE;
-		enableClosedClass = true;
-		useMorphologyFeatures = true;
+		reduceSmoothingEffect = true;
+		enableClosedClass = false;
+		useMorphologyFeatures = false;
+		useHapaxLegomena = true;
+	}
+	
+	public Map<Tag, Integer> getTags(){
+		return tags;
 	}
 	
 	@Override
@@ -260,22 +273,26 @@ public class HMM implements StructuredClassifier{
 			 * Estimate the probability tag j producing the word i p(x_i | y_j)
 			 * using the probability estimation of tag j producing words that only appear once
 			 */
-			double[] uniqueCount = new double[tags.size()];
-			Arrays.fill(uniqueCount, 0);
-			for(int featureIdx=0; featureIdx<features.size()-8; featureIdx++){
-				if(featureIdx != features.get(UNKNOWN_WORD)){
-					int sum = 0;
-					int idx = -1;
-					for(int tagIdx=0; tagIdx<tags.size(); tagIdx++){
-						sum += tagFeatureProbs[tagIdx][featureIdx];
-						idx = tagIdx;
-					}
-					if(sum == 1){ // Word only appears once
-						uniqueCount[idx] += 1;
-					}
-				} else {
-					for(int tagIdx=0; tagIdx<tags.size(); tagIdx++){
-						tagFeatureProbs[tagIdx][featureIdx] += uniqueCount[tagIdx];
+			if(useHapaxLegomena){
+				double[] uniqueCount = new double[tags.size()];
+				Arrays.fill(uniqueCount, 0);
+				for(int featureIdx=0; featureIdx<features.size()-8; featureIdx++){
+					if(featureIdx != features.get(UNKNOWN_WORD)){
+						int sum = 0;
+						int idx = -1;
+						for(int tagIdx=0; tagIdx<tags.size(); tagIdx++){
+							sum += tagFeatureProbs[tagIdx][featureIdx];
+							if(tagFeatureProbs[tagIdx][featureIdx] == 1){
+								idx = tagIdx;
+							}
+						}
+						if(sum == 1){ // Word only appears once
+							uniqueCount[idx] += 1;
+						}
+					} else {
+						for(int tagIdx=0; tagIdx<tags.size(); tagIdx++){
+							tagFeatureProbs[tagIdx][featureIdx] += uniqueCount[tagIdx];
+						}
 					}
 				}
 			}
@@ -286,7 +303,9 @@ public class HMM implements StructuredClassifier{
 					continue;
 				}
 				for(int featureIdx=0; featureIdx<features.size(); featureIdx++){
-					tagFeatureProbs[tagIdx][featureIdx] *= 256; // To reduce the effect of the add-one
+					if(reduceSmoothingEffect){
+						tagFeatureProbs[tagIdx][featureIdx] *= 256; // To reduce the effect of the add-one
+					}
 					tagFeatureProbs[tagIdx][featureIdx] += 1;
 				}
 			}
@@ -358,10 +377,12 @@ public class HMM implements StructuredClassifier{
 				for(int tagIdx=0; tagIdx<curProbs.length; tagIdx++){
 					// Word emission probability p(x_i | y_j), i=featureIdx, j=tagIdx
 					double wordTagProb = tagFeatureProbs[tagIdx][featureIdx];
-					if(useMorphologyFeatures && word == UNKNOWN_WORD){
-						double initCapProb = tagFeatureProbs[tagIdx][getInitCapFeature(wordTag.word(), wordCount==0)];
-						double endProb = tagFeatureProbs[tagIdx][getEndFeature(wordTag.word())];
-						wordTagProb = wordTagProb + initCapProb + endProb;
+					if(word == UNKNOWN_WORD){
+						if(useMorphologyFeatures){
+							double initCapProb = tagFeatureProbs[tagIdx][getInitCapFeature(wordTag.word(), wordCount==0)];
+							double endProb = tagFeatureProbs[tagIdx][getEndFeature(wordTag.word())];
+							wordTagProb = wordTagProb + initCapProb + endProb;
+						}
 					}
 					if(wordCount == 0){
 						// Transition probability from START to tagIdx p(y_j | y_i), i=START, j=tagIdx

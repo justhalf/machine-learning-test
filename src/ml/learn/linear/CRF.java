@@ -163,6 +163,10 @@ public class CRF implements StructuredClassifier{
 		initialize(templateObjects);
 	}
 	
+	public Map<Tag, Integer> getTags(){
+		return tags;
+	}
+	
 	private void initialize(Template[] templates){
 		random = new Random(0);
 		tags = new LinkedHashMap<Tag, Integer>();

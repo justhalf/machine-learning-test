@@ -8,7 +8,9 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 import ml.learn.object.Tag;
@@ -59,7 +61,7 @@ public class Main {
 				System.out.println(instance);
 			}
 		}
-		printScore(result, testData);
+		printScore(result, testData, classifier.getTags());
 		if(useCoNLLFormat){
 			FileWriter wr = new FileWriter("experiments/myresult");
 			Iterator<Instance> predIter = result.iterator();
@@ -95,11 +97,24 @@ public class Main {
 		}
 	}
 	
-	private static void printScore(List<Instance> predicted, List<Instance> actual){
+	private static void printScore(List<Instance> predicted, List<Instance> actual, Map<Tag, Integer> tags){
 		int total = 0;
 		int correct = 0;
+		Map<Tag, Integer> reducedTags = new LinkedHashMap<Tag, Integer>();
+		for(Tag tag: tags.keySet()){
+			if(tag.text.matches("START|END")){
+				continue;
+			}
+			reducedTags.put(tag, tags.get(tag));
+		}
+		tags = reducedTags;
+		Tag[] reverseTags = new Tag[tags.size()];
+		for(Tag tag: tags.keySet()){
+			reverseTags[tags.get(tag)] = tag;
+		}
 		Iterator<Instance> predIter = predicted.iterator();
 		Iterator<Instance> actuIter = actual.iterator();
+		int[][] confusionMatrix = new int[tags.size()][tags.size()];
 		while(predIter.hasNext()){
 			Instance predInstance = predIter.next();
 			Instance actuInstance = actuIter.next();
@@ -109,12 +124,51 @@ public class Main {
 				total++;
 				TaggedWord predWord = predInstIter.next();
 				TaggedWord actuWord = actuInstIter.next();
-				if(predWord.tag() == actuWord.tag()){
+				int predTagIdx = tags.get(predWord.tag());
+				int actuTagIdx = tags.get(actuWord.tag());
+				if(predTagIdx == actuTagIdx){
 					correct++;
 				}
+				confusionMatrix[actuTagIdx][predTagIdx]++;
 			}
 		}
 		System.out.println(String.format("Accuracy = %d/%d = %.2f%%", correct, total, 100.0*correct/total));
+		int maxTagLen = 0;
+		for(Tag tag: tags.keySet()){
+			if(tag.text.length() > maxTagLen){
+				maxTagLen = tag.text.length();
+			}
+		}
+		for(int i=0; i<maxTagLen; i++){
+			System.out.print(" ");
+		}
+		for(int i=0; i<tags.size(); i++){
+			System.out.printf(String.format("%%%ds", maxTagLen+2), reverseTags[i]);
+		}
+		System.out.println();
+		double[] precisions = new double[tags.size()];
+		double[] recalls = new double[tags.size()];
+		double[] f1s = new double[tags.size()];
+		for(int i=0; i<tags.size(); i++){
+			int sumPred = 0;
+			int sumActu = 0;
+			System.out.printf(String.format("%%%ds", maxTagLen), reverseTags[i]);
+			for(int j=0; j<tags.size(); j++){
+				sumActu += confusionMatrix[i][j];
+				sumPred += confusionMatrix[j][i];
+				System.out.printf("%6d", confusionMatrix[i][j]);
+			}
+			precisions[i] = 1.0*confusionMatrix[i][i]/sumPred;
+			recalls[i] = 1.0*confusionMatrix[i][i]/sumActu;
+			f1s[i] = 2.0/((1/precisions[i])+(1/recalls[i]));
+			System.out.println();
+		}
+		double avgF1 = 0;
+		for(int i=0; i<tags.size(); i++){
+			avgF1 += f1s[i];
+			System.out.println(String.format("%6s: Pr=%.2f%% Rc=%.2f%% F1=%.2f%%", reverseTags[i], precisions[i]*100, recalls[i]*100, f1s[i]*100));
+		}
+		System.out.printf("Macro average F1: %.2f%%", 100*avgF1/tags.size());
 	}
 	
 	private static List<Instance> readData(String fileName, boolean withTags) throws IOException{

@@ -1,6 +1,9 @@
 package ml.learn.linear;
 
 import java.util.List;
+import java.util.Map;
+
+import ml.learn.object.Tag;
 
 public interface StructuredClassifier {
 
@@ -16,4 +19,10 @@ public interface StructuredClassifier {
 	 * @return
 	 */
 	public List<Instance> predict(List<Instance> testData);
+	
+	/**
+	 * Return the list of tags
+	 * @return
+	 */
+	public Map<Tag, Integer> getTags();
 }
