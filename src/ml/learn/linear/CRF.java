@@ -319,7 +319,8 @@ public class CRF implements StructuredClassifier{
 			for(int i=0; i<point.length; i++){
 				result += Math.pow(point[i], 2);
 			}
-			result /= 2*Math.pow(regularizationParameter, 2)*scale;
+			result /= 2*Math.pow(regularizationParameter, 2);
+			result *= scale;
 			return result;
 		}
 		
@@ -464,7 +465,7 @@ public class CRF implements StructuredClassifier{
 			double scale = ((double)trainingData.size())/staticTrainingData.size();
 			double[] result = new double[featureIndices.size()];
 			for(int i=0; i<result.length; i++){
-				result[i] = point[i]/Math.pow(regularizationParameter, 2)*scale;
+				result[i] = scale*point[i]/Math.pow(regularizationParameter, 2);
 			}
 			return result;
 		}
