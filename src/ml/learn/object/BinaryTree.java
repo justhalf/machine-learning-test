@@ -68,7 +68,9 @@ public class BinaryTree {
 		String label = tree.value();
 		int dashIdx = label.indexOf("-");
 		if(dashIdx > -1){
-			label = label.substring(0, dashIdx);
+			if(!label.matches("-[LR][RCS]B-")){
+				label = label.substring(0, dashIdx);
+			}
 		}
 		if(label.startsWith("@")){
 			label = label.substring(1);

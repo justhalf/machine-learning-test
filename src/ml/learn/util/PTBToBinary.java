@@ -1,13 +1,13 @@
 package ml.learn.util;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.FileWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import edu.stanford.nlp.parser.lexparser.TreeBinarizer;
 import edu.stanford.nlp.trees.CollinsHeadFinder;
@@ -19,11 +19,14 @@ import ml.learn.object.BinaryTree;
 
 public class PTBToBinary {
 	
-	public static void main(String[] args) throws IOException{
-		List<BinaryTree> trainingData = readPTB("ptb.dev");
-		try (FileWriter writer = new FileWriter("ptb-binary.dev")){
-			for(BinaryTree tree: trainingData){
-				writer.write(toStanfordTree(tree).toString().replace(") ", ")")+"\n");
+	public static void main(String[] args) throws FileNotFoundException {
+		String input = args[0];
+		String output = args[1];
+		System.out.println("Converting PTB from \""+input+"\" to \""+output+"\"");
+		List<BinaryTree> trees = readPTB(input);
+		try (PrintWriter writer = new PrintWriter(output)){
+			for(BinaryTree tree: trees){
+				writer.println(toStanfordTree(tree).toString().replace(") ", ")"));
 			}
 		}
 		System.out.println("Conversion done");
@@ -52,16 +55,16 @@ public class PTBToBinary {
 	 * @return
 	 * @throws IOException
 	 */
-	private static List<BinaryTree> readPTB(String fileName) throws IOException{
+	private static List<BinaryTree> readPTB(String fileName) throws FileNotFoundException {
 		List<BinaryTree> result = new ArrayList<BinaryTree>();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
-		while(reader.ready()){
-			String line = reader.readLine();
+		Scanner sc = new Scanner(new File(fileName), "UTF-8");
+		while(sc.hasNextLine()){
+			String line = sc.nextLine();
 			Tree stanfordTree = readStanfordTree(line);
 			BinaryTree tree = BinaryTree.fromStanfordTree(stanfordTree);
 			result.add(tree);
 		}
-		reader.close();
+		sc.close();
 		return result;
 	}
 
